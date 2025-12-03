@@ -9,8 +9,8 @@
 // Core types
 export * from './core/types';
 
-// Core modules (to be implemented in subsequent tasks)
-// export * from './core/SceneManager';
+// Core modules
+export * from './core/SceneManager';
 // export * from './core/RaycastSystem';
 
 // Treat management (to be implemented in subsequent tasks)

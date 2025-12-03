@@ -25,14 +25,14 @@
     - Create worlds config with user-provided .spz URLs and thumbnails
     - _Requirements: 1.1_
 
-- [ ] 3. Implement SceneManager and SparkJS integration
-  - [ ] 3.1 Create SceneManager class
+- [x] 3. Implement SceneManager and SparkJS integration
+  - [x] 3.1 Create SceneManager class
     - Use SparkJS Viewer class for .spz loading (see SparkJS examples)
     - Leverage SparkJS built-in camera controls
     - Use SparkJS collider initialization for raycasting support
     - Expose Three.js scene from SparkJS for GLB placement
     - _Requirements: 1.3, 1.4, 1.5_
-  - [ ] 3.2 Implement error handling for world loading
+  - [x] 3.2 Implement error handling for world loading
     - Handle .spz load failures with error messages
     - Provide fallback world options
     - _Requirements: 1.6_
