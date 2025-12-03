@@ -1,0 +1,34 @@
+{
+  "name": "@splat-and-treat/skeleton",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.450.0",
+    "@aws-sdk/credential-providers": "^3.450.0",
+    "@sparkjsdev/spark": "^0.1.0",
+    "three": "^0.159.0",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/three": "^0.159.0",
+    "fast-check": "^3.14.0",
+    "typescript": "^5.3.2",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0"
+  }
+}
