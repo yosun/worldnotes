@@ -11,6 +11,7 @@ export * from './core/types';
 
 // Core modules
 export * from './core/SceneManager';
+export * from './core/NavigationController';
 // export * from './core/RaycastSystem';
 
 // Treat management (to be implemented in subsequent tasks)

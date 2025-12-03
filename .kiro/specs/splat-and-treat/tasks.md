@@ -37,26 +37,26 @@
     - Provide fallback world options
     - _Requirements: 1.6_
 
-- [ ] 4. Implement FPS Navigation Controller
-  - [ ] 4.1 Create NavigationController class
+- [x] 4. Implement FPS Navigation Controller
+  - [x] 4.1 Create NavigationController class
     - Desktop: WASD/arrow keys for movement, mouse drag for look
     - Mobile: Virtual joystick using nipplejs library
     - Mobile: Touch drag for camera look direction
     - Support pinch-to-zoom on mobile
     - Integrate with animation loop for smooth 60fps movement
     - _Requirements: 0.1.1, 0.1.2, 0.1.3, 0.1.4, 0.1.5, 0.1.6_
-  - [ ] 4.2 Create mobile joystick overlay
+  - [x] 4.2 Create mobile joystick overlay
     - Position joystick in bottom-left corner
     - Semi-transparent, non-intrusive design
     - _Requirements: 0.1.3_
 
-- [ ] 5. Wire up basic app flow
-  - [ ] 5.1 Create main App component
+- [x] 5. Wire up basic app flow
+  - [x] 5.1 Create main App component
     - World selector → Scene view transition
     - Initialize SceneManager when world selected
     - Initialize NavigationController
     - _Requirements: 1.1, 1.3_
-  - [ ] 5.2 Add back button to return to world selector
+  - [x] 5.2 Add back button to return to world selector
     - Clean up scene resources on exit
     - _Requirements: 1.1_
 

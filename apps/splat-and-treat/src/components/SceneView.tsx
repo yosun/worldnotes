@@ -1,14 +1,15 @@
 /**
  * SceneView Component - Renders the 3D splat world with error handling
  * 
- * Handles world loading, error display, and fallback options.
- * Requirements: 1.3, 1.4, 1.5, 1.6
+ * Handles world loading, error display, fallback options, and FPS navigation.
+ * Requirements: 1.3, 1.4, 1.5, 1.6, 0.1.1, 0.1.2, 0.1.3, 0.1.4, 0.1.5, 0.1.6
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { World } from '@splat-and-treat/skeleton';
-import { SceneManager, type SceneLoadError } from '@splat-and-treat/skeleton';
+import { SceneManager, NavigationController, type SceneLoadError } from '@splat-and-treat/skeleton';
 import { worlds, SPECIAL_WORLD_IDS } from '../config';
+import { MobileJoystick } from './MobileJoystick';
 
 interface SceneViewProps {
   /** The world to load and display */
@@ -61,7 +62,17 @@ function getFallbackWorlds(currentWorldId: string): World[] {
 export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneManagerRef = useRef<SceneManager | null>(null);
+  const navigationControllerRef = useRef<NavigationController | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const clockRef = useRef<{ lastTime: number }>({ lastTime: 0 });
   const [loadingState, setLoadingState] = useState<LoadingState>({ status: 'idle' });
+
+  // Handle joystick input for mobile navigation
+  const handleJoystickMove = useCallback((x: number, y: number) => {
+    if (navigationControllerRef.current) {
+      navigationControllerRef.current.setJoystickInput(x, y);
+    }
+  }, []);
 
   // Initialize and load the world
   useEffect(() => {
@@ -93,7 +104,7 @@ export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
 
         // Handle empty world (no SPZ to load)
         if (world.id === SPECIAL_WORLD_IDS.EMPTY || !world.spzUrl) {
-          sceneManager.startRenderLoop();
+          setupNavigation(sceneManager, canvas);
           setLoadingState({ status: 'ready' });
           return;
         }
@@ -102,7 +113,7 @@ export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
         const result = await sceneManager.loadWorld(world.spzUrl);
 
         if (result.success) {
-          sceneManager.startRenderLoop();
+          setupNavigation(sceneManager, canvas);
           setLoadingState({ status: 'ready' });
         } else {
           setLoadingState({ status: 'error', error: result.error });
@@ -116,6 +127,40 @@ export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
       }
     };
 
+    // Set up FPS navigation controller and animation loop
+    const setupNavigation = (manager: SceneManager, canvasElement: HTMLCanvasElement) => {
+      const camera = manager.getCamera();
+      if (!camera) return;
+
+      // Disable SparkJS built-in controls (we're using our own)
+      manager.setControlsEnabled(false);
+
+      // Create NavigationController
+      const navController = new NavigationController({
+        domElement: canvasElement,
+        camera,
+        moveSpeed: 5,
+        lookSensitivity: 0.002,
+      });
+      navigationControllerRef.current = navController;
+
+      // Start custom animation loop with navigation updates
+      clockRef.current.lastTime = performance.now();
+      
+      const animate = () => {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        
+        const now = performance.now();
+        const deltaTime = (now - clockRef.current.lastTime) / 1000;
+        clockRef.current.lastTime = now;
+        
+        // Update navigation
+        navController.update(deltaTime);
+      };
+      
+      animate();
+    };
+
     loadWorld();
 
     // Handle window resize
@@ -127,6 +172,19 @@ export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
     // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
+      
+      // Stop animation loop
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      // Dispose navigation controller
+      if (navigationControllerRef.current) {
+        navigationControllerRef.current.dispose();
+        navigationControllerRef.current = null;
+      }
+      
       sceneManager.dispose();
       sceneManagerRef.current = null;
     };
@@ -256,16 +314,33 @@ export function SceneView({ world, onBack, onSelectFallback }: SceneViewProps) {
 
       {/* World info overlay (when ready) */}
       {loadingState.status === 'ready' && (
-        <div className="absolute bottom-4 left-4 z-10">
-          <div className="px-4 py-2 bg-halloween-black/60 backdrop-blur-sm rounded-lg">
-            <h3 className="text-lg font-semibold text-halloween-orange">
-              {world.name}
-            </h3>
-            <p className="text-sm text-gray-400">
-              Use WASD to move • Mouse to look around
-            </p>
+        <>
+          <div className="absolute bottom-4 left-4 z-10 hidden md:block">
+            <div className="px-4 py-2 bg-halloween-black/60 backdrop-blur-sm rounded-lg">
+              <h3 className="text-lg font-semibold text-halloween-orange">
+                {world.name}
+              </h3>
+              <p className="text-sm text-gray-400">
+                Use WASD to move • Mouse drag to look around
+              </p>
+            </div>
           </div>
-        </div>
+          
+          {/* Mobile joystick overlay */}
+          <MobileJoystick 
+            onMove={handleJoystickMove}
+            enabled={loadingState.status === 'ready'}
+          />
+          
+          {/* Mobile world info */}
+          <div className="absolute bottom-4 right-4 z-10 md:hidden">
+            <div className="px-3 py-1.5 bg-halloween-black/60 backdrop-blur-sm rounded-lg">
+              <h3 className="text-sm font-semibold text-halloween-orange">
+                {world.name}
+              </h3>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
