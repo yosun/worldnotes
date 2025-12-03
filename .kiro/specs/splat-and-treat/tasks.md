@@ -13,8 +13,8 @@
   - Create .env.example with all required environment variables
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [-] 2. Create World Selection Screen
-  - [ ] 2.1 Build world selector UI
+- [x] 2. Create World Selection Screen
+  - [x] 2.1 Build world selector UI
     - Grid layout of world thumbnails
     - Parallax preview effect on hover (subtle 3D tilt)
     - "Create Empty World" card option
