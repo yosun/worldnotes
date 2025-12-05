@@ -299,6 +299,25 @@
       white-space: nowrap;
       max-width: 180px;
     }
+    .treat-panel .treat-item .treat-actions {
+      display: flex;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+    .treat-panel .treat-item .duplicate-btn {
+      background: rgba(138, 43, 226, 0.4);
+      color: white;
+      border: none;
+      border-radius: 0.25rem;
+      padding: 0.125rem 0.375rem;
+      cursor: pointer;
+      font-size: 0.7rem;
+      width: auto;
+      margin: 0;
+    }
+    .treat-panel .treat-item .duplicate-btn:hover {
+      background: rgba(138, 43, 226, 0.7);
+    }
     .treat-panel .treat-item .delete-btn {
       background: rgba(255, 0, 0, 0.3);
       color: white;
@@ -773,7 +792,7 @@
       let isVisible = false;
       let isValid = true;
       let currentRotationY = 0;
-      let currentScale = 1.0;
+      let currentScale = 0.33;
       let loader = null;
       let cachedModelMinY = 0;
 
@@ -937,7 +956,7 @@
                 isVisible = false;
                 isValid = true;
                 currentRotationY = 0;
-                currentScale = 1.0;
+                currentScale = 0.33;
                 
                 // Add to scene
                 scene.add(previewMesh);
@@ -1150,7 +1169,7 @@
           isVisible = false;
           isValid = true;
           currentRotationY = 0;
-          currentScale = 1.0;
+          currentScale = 0.33;
           cachedModelMinY = 0;
         },
       };
@@ -2494,20 +2513,55 @@
                      treat.glbUrl.split('/').pop().substring(0, 20);
         const hasText = treat.metadata.text ? ' 📜' : '';
         return `
-          <div class="treat-item" data-id="${treat.id}">
+          <div class="treat-item" data-id="${treat.id}" data-glb-url="${treat.glbUrl}" data-type="${treat.type}">
             <span class="treat-name">${name}${hasText}</span>
-            <button class="delete-btn" data-id="${treat.id}">✕</button>
+            <div class="treat-actions">
+              <button class="duplicate-btn" data-id="${treat.id}" data-glb-url="${treat.glbUrl}" data-type="${treat.type}" title="Duplicate">⧉</button>
+              <button class="delete-btn" data-id="${treat.id}" title="Delete">✕</button>
+            </div>
           </div>
         `;
       }).join('');
     }
 
-    // Handle delete button clicks in placed treats list
-    placedTreatsList.addEventListener('click', (e) => {
+    // Handle button clicks in placed treats list (delete and duplicate)
+    placedTreatsList.addEventListener('click', async (e) => {
       if (e.target.classList.contains('delete-btn')) {
         const treatId = e.target.dataset.id;
         if (treatManager) treatManager.removeTreat(treatId);
         updatePlacedTreatsList();
+      }
+      
+      // Handle duplicate button click (Requirements 2.5)
+      if (e.target.classList.contains('duplicate-btn')) {
+        const glbUrl = e.target.dataset.glbUrl;
+        const treatType = e.target.dataset.type;
+        
+        if (!glbUrl || !treatManager) return;
+        
+        try {
+          showStatus('Loading treat for duplication...', 'loading');
+          
+          // Select the treat type for placement
+          await treatManager.selectTreat(glbUrl, treatType);
+          
+          // Load ghost preview for the selected treat
+          if (ghostPreview) {
+            await ghostPreview.load(glbUrl);
+          }
+          
+          // Enter placement mode
+          enterPlacementMode();
+          
+          // Update UI - clear preset selections and set custom URL
+          document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+          glbUrlInput.value = glbUrl;
+          
+          showStatus('Move cursor to preview placement position', 'ready');
+        } catch (error) {
+          console.error('Failed to duplicate treat:', error);
+          showStatus(`✗ Failed to duplicate: ${error.message}`, 'error');
+        }
       }
     });
 
@@ -2689,6 +2743,7 @@
     // ============================================
     let isInPlacementMode = false;
     let lastValidHit = null;
+    let selectedPlacedTreatId = null; // Track selected treat for adjustment (Requirement 2.3, 3.1)
     
     function enterPlacementMode() {
       isInPlacementMode = true;
@@ -2706,6 +2761,36 @@
       lastValidHit = null;
       // Hide cancel button (Requirement 2.4)
       if (cancelPlacementBtn) cancelPlacementBtn.style.display = 'none';
+    }
+    
+    /**
+     * Select a placed treat for adjustment (Requirement 2.3, 3.1)
+     * @param {string} treatId - ID of the treat to select
+     */
+    function selectPlacedTreatForAdjustment(treatId) {
+      selectedPlacedTreatId = treatId;
+      window.dispatchEvent(new CustomEvent('treat-selected-for-adjustment', { detail: { treatId } }));
+      console.log('Selected treat for adjustment:', treatId);
+    }
+    
+    /**
+     * Deselect the currently selected placed treat
+     */
+    function deselectPlacedTreat() {
+      if (selectedPlacedTreatId) {
+        const previousId = selectedPlacedTreatId;
+        selectedPlacedTreatId = null;
+        window.dispatchEvent(new CustomEvent('treat-deselected', { detail: { treatId: previousId } }));
+        console.log('Deselected treat:', previousId);
+      }
+    }
+    
+    /**
+     * Get the currently selected placed treat ID
+     * @returns {string|null} The selected treat ID or null
+     */
+    function getSelectedPlacedTreatId() {
+      return selectedPlacedTreatId;
     }
     
     // Update ghost preview position on mouse move (Requirements 1.1, 1.2)
@@ -2798,9 +2883,15 @@
               showHitMarker({ position: ghostTransform.position });
               window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
               
-              // Keep selection and ghost preview for next placement (Requirement 2.3)
-              // Ghost preview stays visible and ready for next placement
-              showStatus('✓ Treat placed! Click again to place another.', 'ready');
+              // Exit placement mode and select the newly placed treat for adjustment (Requirement 2.3)
+              exitPlacementMode();
+              treatManager.clearSelection();
+              // Clear preset selections in UI
+              document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+              // Select the newly placed treat for adjustment
+              selectPlacedTreatForAdjustment(placedTreat.id);
+              showStatus('✓ Treat placed! Selected for adjustment.', 'ready');
+              setTimeout(hideStatus, 2000);
             }
           } else {
             console.log('No ghost transform available');
@@ -2983,8 +3074,15 @@
                   showHitMarker({ position: ghostTransform.position });
                   window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
                   
-                  // Keep selection and ghost preview for next placement (Requirement 2.3)
-                  showStatus('✓ Treat placed! Tap again to place another.', 'ready');
+                  // Exit placement mode and select the newly placed treat for adjustment (Requirement 2.3)
+                  exitPlacementMode();
+                  treatManager.clearSelection();
+                  // Clear preset selections in UI
+                  document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+                  // Select the newly placed treat for adjustment
+                  selectPlacedTreatForAdjustment(placedTreat.id);
+                  showStatus('✓ Treat placed! Selected for adjustment.', 'ready');
+                  setTimeout(hideStatus, 2000);
                 }
               } else {
                 console.log('Mobile: No ghost transform available');

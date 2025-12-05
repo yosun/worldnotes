@@ -137,6 +137,7 @@ export const defaultTreats = [
     glbUrl: 'https://s3.amazonaws.com/worldmatica/geomarker_animated.glb',
     thumbnail: '/thumbnails/geomarker.png',
     tags: ['marker', 'pin', 'annotation', 'enterprise'],
+    scale: 0.33,
   },
   {
     id: 'message-bottle',
@@ -144,6 +145,7 @@ export const defaultTreats = [
     glbUrl: 'https://s3.amazonaws.com/worldmatica/message_in_a_bottle.glb',
     thumbnail: '/thumbnails/message-bottle.png',
     tags: ['message', 'bottle', 'communication'],
+    scale: 0.33,
   },
 ];
 

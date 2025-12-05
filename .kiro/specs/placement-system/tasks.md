@@ -54,14 +54,14 @@
   - [ ]* 3.3 Write property test for placed treat opacity
     - **Property 5: Placed treat has full opacity**
     - **Validates: Requirements 2.2**
-  - [ ] 3.4 Exit placement mode after placing
+  - [x] 3.4 Exit placement mode after placing
     - After placing, exit placement mode
     - Select the newly placed treat for adjustment
     - _Requirements: 2.3_
   - [ ]* 3.5 Write property test for placement mode exit
     - **Property 6: Placement exits to adjustment mode**
     - **Validates: Requirements 2.3**
-  - [ ] 3.7 Implement duplicate button for selected treats
+  - [x] 3.7 Implement duplicate button for selected treats
     - Add duplicate button to selection UI
     - Clicking duplicate enters placement mode with same treat type
     - _Requirements: 2.5_
@@ -74,8 +74,8 @@
 
 ## Phase 3: Selection and Post-Placement Adjustment
 
-- [ ] 5. Create SelectionManager component
-  - [ ] 5.1 Implement SelectionManager class
+- [-] 5. Create SelectionManager component
+  - [-] 5.1 Implement SelectionManager class
     - Track selected treat ID
     - Track hovered treat ID
     - Emit events on selection/deselection
