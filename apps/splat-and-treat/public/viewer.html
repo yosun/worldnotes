@@ -3159,10 +3159,10 @@
 
       // Get world from URL params
       const params = new URLSearchParams(window.location.search);
-      const spzUrl =
+      let spzUrl =
         params.get('url') ||
-        'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bonsai/bonsai-7k-mini.spz';
-      const worldName = params.get('name') || 'Splat World';
+        'https://s3.amazonaws.com/worldmatica/splat_n_treat/matterport-interior.spz';
+      let worldName = params.get('name') || 'Splat World';
       const thumbnailUrl = params.get('thumb');
       const adminParam = params.get('admin');
       const isAdminMode = adminParam === 'true' || adminParam === 'debug';
@@ -3175,6 +3175,7 @@
       // Scene ID for loading shared scenes
       const sceneIdParam = params.get('scene');
       let worldUrl = spzUrl; // Track the world URL for scene state
+      let pendingSceneState = null; // Scene state to restore after SPZ loads
 
       // Default treat GLB filename (e.g., 'geomarker_animated.glb')
       const S3_BASE_URL = 'https://s3.amazonaws.com/worldmatica/';
@@ -3270,15 +3271,56 @@
       // Load splat with progress tracking using SplatLoader
       const splatLoader = new SplatLoader();
 
-      console.log('🔄 Loading SPZ from:', spzUrl);
+      /**
+       * Initialize the viewer - fetch scene JSON first if scene param exists
+       */
+      async function initializeViewer() {
+        // If there's a scene param, fetch the JSON first to get the worldUrl
+        if (sceneIdParam) {
+          console.log('🔗 Fetching shared scene metadata:', sceneIdParam);
+          loadingStatus.textContent = 'Loading shared scene...';
+          try {
+            pendingSceneState = await loadSceneFromS3(sceneIdParam);
+            if (pendingSceneState && pendingSceneState.worldUrl) {
+              spzUrl = pendingSceneState.worldUrl;
+              worldUrl = pendingSceneState.worldUrl;
+              if (pendingSceneState.worldName) {
+                worldName = pendingSceneState.worldName;
+                document.getElementById('world-name').textContent = worldName;
+              }
+              // Apply saved camera position if available
+              if (pendingSceneState.startPosition) {
+                const sp = pendingSceneState.startPosition;
+                startPos.x = sp.x ?? startPos.x;
+                startPos.y = sp.y ?? startPos.y;
+                startPos.z = sp.z ?? startPos.z;
+                camera.position.set(startPos.x, startPos.y, startPos.z);
+              }
+              if (pendingSceneState.startRotation) {
+                const sr = pendingSceneState.startRotation;
+                startRot.x = sr.x ?? startRot.x;
+                startRot.y = sr.y ?? startRot.y;
+                const initEuler = new THREE.Euler(startRot.x, startRot.y, 0, 'YXZ');
+                camera.quaternion.setFromEuler(initEuler);
+              }
+              currentSceneId = sceneIdParam;
+              console.log('📍 Scene worldUrl:', spzUrl, 'startPos:', startPos);
+            }
+          } catch (error) {
+            console.error('Failed to fetch scene metadata:', error);
+            // Continue with default/URL-provided spzUrl
+          }
+        }
 
-      // Test URL accessibility
-      fetch(spzUrl, { method: 'HEAD' })
-        .then((res) => console.log('📡 URL check:', res.ok ? 'accessible' : `error ${res.status}`))
-        .catch((err) => console.log('📡 URL check failed:', err.message));
+        console.log('🔄 Loading SPZ from:', spzUrl);
 
-      splatLoader.load(
-        spzUrl,
+        // Test URL accessibility
+        fetch(spzUrl, { method: 'HEAD' })
+          .then((res) => console.log('📡 URL check:', res.ok ? 'accessible' : `error ${res.status}`))
+          .catch((err) => console.log('📡 URL check failed:', err.message));
+
+        splatLoader.load(
+          spzUrl,
         // onLoad - called when PackedSplats is ready
         (packedSplats) => {
           console.log('✅ PackedSplats received, building mesh...');
@@ -3340,13 +3382,17 @@
         }
       );
 
-      // Fallback timeout for very large files
-      setTimeout(() => {
-        if (!loadHandled && !splatMesh) {
-          console.error('⏱️ Timeout reached. loadHandled:', loadHandled, 'splatMesh:', splatMesh);
-          showError('Loading timed out - file may be too large or URL may be invalid');
-        }
-      }, CONFIG.loadTimeout);
+        // Fallback timeout for very large files
+        setTimeout(() => {
+          if (!loadHandled && !splatMesh) {
+            console.error('⏱️ Timeout reached. loadHandled:', loadHandled, 'splatMesh:', splatMesh);
+            showError('Loading timed out - file may be too large or URL may be invalid');
+          }
+        }, CONFIG.loadTimeout);
+      }
+
+      // Start the viewer initialization
+      initializeViewer();
 
       // ============================================
       // Admin Camera Calibration (only when ?admin=true)
@@ -3923,7 +3969,7 @@
       });
 
       // FPS Controls
-      const moveState = { forward: false, backward: false, left: false, right: false };
+      const moveState = { forward: false, backward: false, left: false, right: false, up: false, down: false };
       const joystickInput = { x: 0, y: 0 };
       const euler = new THREE.Euler(startRot.x, startRot.y, 0, 'YXZ'); // Initialize from URL params
       let isLocked = false;
@@ -3938,6 +3984,11 @@
         ArrowLeft: 'left',
         KeyD: 'right',
         ArrowRight: 'right',
+        KeyQ: 'down',
+        KeyE: 'up',
+        Space: 'up',
+        ShiftLeft: 'down',
+        ShiftRight: 'down',
       };
 
       // Desktop keyboard controls
@@ -5093,9 +5144,18 @@
        */
       function buildSceneState() {
         const treats = treatManager ? treatManager.getAllTreats() : [];
+        // Save current camera position/rotation so shared scene opens at same view
+        const currentPos = camera.position;
+        const currentRot = euler; // euler is updated by mouse look
         return {
           version: 1,
           worldUrl: worldUrl || '',
+          worldName: worldName || '',
+          // Save current camera state so shared scenes load at same view
+          startPosition: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
+          startRotation: { x: currentRot.x, y: currentRot.y },
+          shouldFlip: shouldFlip,
+          thumbnailUrl: thumbnailUrl || '',
           treats: treats.map((t) => ({
             id: t.id,
             type: t.type,
@@ -5118,25 +5178,37 @@
       }
 
       /**
-       * Save scene to S3 using AWS SDK
+       * Load AWS SDK v2 (browser-compatible) dynamically
+       */
+      let awsSDKLoaded = false;
+      async function loadAWSSDK() {
+        if (awsSDKLoaded) return;
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        awsSDKLoaded = true;
+      }
+
+      /**
+       * Save scene to S3 using AWS SDK v2 (browser bundle)
        */
       async function saveSceneToS3(sceneState) {
-        // Dynamically import AWS SDK from esm.sh (better ESM compatibility than jsdelivr)
-        const { S3Client, PutObjectCommand } = await import(
-          'https://esm.sh/@aws-sdk/client-s3@3.600.0'
-        );
-        const { fromCognitoIdentityPool } = await import(
-          'https://esm.sh/@aws-sdk/credential-providers@3.600.0'
-        );
+        await loadAWSSDK();
 
-        const s3Client = new S3Client({
-          region: AWS_CONFIG.region,
-          credentials: fromCognitoIdentityPool({
-            identityPoolId: AWS_CONFIG.identityPoolId,
-            clientConfig: { region: AWS_CONFIG.region },
-          }),
+        // Configure AWS with Cognito credentials
+        AWS.config.region = AWS_CONFIG.region;
+        AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+          IdentityPoolId: AWS_CONFIG.identityPoolId,
         });
 
+        // Wait for credentials to be ready
+        await AWS.config.credentials.getPromise();
+
+        const s3 = new AWS.S3();
         const sceneId = currentSceneId || generateUUID();
         const s3Key = `scenes/${sceneId}.json`;
 
@@ -5146,14 +5218,14 @@
           sceneState.createdAt = sceneState.updatedAt;
         }
 
-        await s3Client.send(
-          new PutObjectCommand({
+        await s3
+          .putObject({
             Bucket: AWS_CONFIG.bucketName,
             Key: s3Key,
             Body: JSON.stringify(sceneState),
             ContentType: 'application/json',
           })
-        );
+          .promise();
 
         currentSceneId = sceneId;
         return {
@@ -5254,39 +5326,38 @@
        */
       async function loadSceneFromS3(sceneId) {
         try {
-          const { S3Client, GetObjectCommand } = await import(
-            'https://esm.sh/@aws-sdk/client-s3@3.600.0'
-          );
-          const { fromCognitoIdentityPool } = await import(
-            'https://esm.sh/@aws-sdk/credential-providers@3.600.0'
-          );
+          await loadAWSSDK();
 
-          const s3Client = new S3Client({
-            region: AWS_CONFIG.region,
-            credentials: fromCognitoIdentityPool({
-              identityPoolId: AWS_CONFIG.identityPoolId,
-              clientConfig: { region: AWS_CONFIG.region },
-            }),
+          // Configure AWS with Cognito credentials
+          AWS.config.region = AWS_CONFIG.region;
+          AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+            IdentityPoolId: AWS_CONFIG.identityPoolId,
           });
 
+          await AWS.config.credentials.getPromise();
+
+          const s3 = new AWS.S3();
           const s3Key = `scenes/${sceneId}.json`;
 
-          const response = await s3Client.send(
-            new GetObjectCommand({
+          const response = await s3
+            .getObject({
               Bucket: AWS_CONFIG.bucketName,
               Key: s3Key,
             })
-          );
+            .promise();
 
           if (!response.Body) {
             return null;
           }
 
-          // Convert stream to string
-          const bodyString = await response.Body.transformToString();
+          // Body is a Uint8Array in browser, convert to string
+          const bodyString =
+            typeof response.Body === 'string'
+              ? response.Body
+              : new TextDecoder().decode(response.Body);
           return JSON.parse(bodyString);
         } catch (error) {
-          if (error.name === 'NoSuchKey') {
+          if (error.code === 'NoSuchKey') {
             console.warn('Scene not found:', sceneId);
             return null;
           }
@@ -5342,23 +5413,19 @@
 
       /**
        * Check for scene parameter and load shared scene
+       * Uses pendingSceneState if already fetched during init
        */
       async function checkAndLoadSharedScene() {
         if (!sceneIdParam) return;
 
-        console.log('🔗 Loading shared scene:', sceneIdParam);
-        currentSceneId = sceneIdParam;
+        console.log('🔗 Restoring shared scene treats:', sceneIdParam);
 
         try {
-          const sceneState = await loadSceneFromS3(sceneIdParam);
+          // Use pre-fetched scene state if available, otherwise fetch now
+          const sceneState = pendingSceneState || (await loadSceneFromS3(sceneIdParam));
+          currentSceneId = sceneIdParam;
 
           if (sceneState) {
-            // Update world URL from scene state if different
-            if (sceneState.worldUrl && sceneState.worldUrl !== worldUrl) {
-              console.log('⚠️ Scene was created in a different world:', sceneState.worldUrl);
-              // For now, we'll still restore treats in the current world
-            }
-
             await restoreSceneState(sceneState);
             showEditorToast(`Loaded shared scene with ${sceneState.treats.length} treats`);
           } else {
@@ -5417,6 +5484,10 @@
           direction.normalize();
           camera.position.addScaledVector(direction, CONFIG.moveSpeed * delta);
         }
+
+        // Vertical movement (Q/Shift = down, E/Space = up)
+        if (moveState.up) camera.position.y += CONFIG.moveSpeed * delta;
+        if (moveState.down) camera.position.y -= CONFIG.moveSpeed * delta;
 
         // Check for nearby message bottles (explore mode)
         checkProximityMessages();
