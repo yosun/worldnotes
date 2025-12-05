@@ -5121,12 +5121,12 @@
        * Save scene to S3 using AWS SDK
        */
       async function saveSceneToS3(sceneState) {
-        // Dynamically import AWS SDK
+        // Dynamically import AWS SDK from esm.sh (better ESM compatibility than jsdelivr)
         const { S3Client, PutObjectCommand } = await import(
-          'https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3.600.0/+esm'
+          'https://esm.sh/@aws-sdk/client-s3@3.600.0'
         );
         const { fromCognitoIdentityPool } = await import(
-          'https://cdn.jsdelivr.net/npm/@aws-sdk/credential-providers@3.600.0/+esm'
+          'https://esm.sh/@aws-sdk/credential-providers@3.600.0'
         );
 
         const s3Client = new S3Client({
@@ -5255,10 +5255,10 @@
       async function loadSceneFromS3(sceneId) {
         try {
           const { S3Client, GetObjectCommand } = await import(
-            'https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3.600.0/+esm'
+            'https://esm.sh/@aws-sdk/client-s3@3.600.0'
           );
           const { fromCognitoIdentityPool } = await import(
-            'https://cdn.jsdelivr.net/npm/@aws-sdk/credential-providers@3.600.0/+esm'
+            'https://esm.sh/@aws-sdk/credential-providers@3.600.0'
           );
 
           const s3Client = new S3Client({
