@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebGL Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: white;
+        }
+        #result {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .success {
+            background: #16213e;
+            border: 2px solid #0f3460;
+        }
+        .error {
+            background: #2d1b1b;
+            border: 2px solid #8b0000;
+        }
+        canvas {
+            border: 2px solid #0f3460;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebGL Support Test</h1>
+    <div id="result"></div>
+    <canvas id="testCanvas" width="400" height="300"></canvas>
+
+    <script>
+        const resultDiv = document.getElementById('result');
+        const canvas = document.getElementById('testCanvas');
+
+        function testWebGL() {
+            try {
+                const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                
+                if (!gl) {
+                    resultDiv.className = 'error';
+                    resultDiv.innerHTML = `
+                        <h2>❌ WebGL Not Supported</h2>
+                        <p>Your browser does not support WebGL.</p>
+                        <p>Please try:</p>
+                        <ul>
+                            <li>Using a different browser (Chrome, Firefox, or Edge)</li>
+                            <li>Enabling hardware acceleration in browser settings</li>
+                            <li>Updating your graphics drivers</li>
+                        </ul>
+                    `;
+                    return;
+                }
+
+                // Test basic rendering
+                gl.clearColor(0.0, 0.5, 0.8, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+
+                const info = {
+                    version: gl.getParameter(gl.VERSION),
+                    vendor: gl.getParameter(gl.VENDOR),
+                    renderer: gl.getParameter(gl.RENDERER),
+                    maxTextureSize: gl.getParameter(gl.MAX_TEXTURE_SIZE),
+                };
+
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = `
+                    <h2>✅ WebGL is Working!</h2>
+                    <p><strong>Version:</strong> ${info.version}</p>
+                    <p><strong>Vendor:</strong> ${info.vendor}</p>
+                    <p><strong>Renderer:</strong> ${info.renderer}</p>
+                    <p><strong>Max Texture Size:</strong> ${info.maxTextureSize}</p>
+                `;
+            } catch (error) {
+                resultDiv.className = 'error';
+                resultDiv.innerHTML = `
+                    <h2>❌ WebGL Error</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+
+        testWebGL();
+    </script>
+</body>
+</html>

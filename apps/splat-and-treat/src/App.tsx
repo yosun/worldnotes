@@ -1,64 +1,43 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { World } from '@splat-and-treat/skeleton';
 import { WorldSelector } from './components/WorldSelector';
-import { SceneView } from './components/SceneView';
 import { SPECIAL_WORLD_IDS } from './config';
 
 /**
- * Application view states
- */
-type AppView = 'world-select' | 'scene';
-
-/**
  * Main application component for Splat and Treat.
- * Handles world selection and scene rendering.
+ * Handles world selection and redirects to vanilla JS viewer.
+ * 
+ * NOTE: SparkJS is incompatible with Vite/React bundlers due to WASM embedding.
+ * The 3D viewer is a separate vanilla JS page (public/viewer.html).
  */
 function App() {
-  const [view, setView] = useState<AppView>('world-select');
-  const [selectedWorld, setSelectedWorld] = useState<World | null>(null);
+  // Check URL for direct viewer access
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const url = params.get('url');
+    const name = params.get('name');
+    
+    // If URL params present, redirect to viewer
+    if (url) {
+      window.location.href = `/viewer.html?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name || 'World')}`;
+    }
+  }, []);
 
   const handleWorldSelect = useCallback((world: World) => {
-    // Empty world is valid - user starts with blank canvas
+    // Empty world - redirect to viewer with no URL (shows grid)
     if (world.id === SPECIAL_WORLD_IDS.EMPTY) {
-      setSelectedWorld(world);
-      setView('scene');
+      window.location.href = `/viewer.html?name=${encodeURIComponent(world.name)}`;
       return;
     }
 
-    // Regular world with SPZ URL
+    // Regular world with SPZ URL - redirect to vanilla viewer
     if (world.spzUrl) {
-      setSelectedWorld(world);
-      setView('scene');
+      const url = encodeURIComponent(world.spzUrl);
+      const name = encodeURIComponent(world.name);
+      window.location.href = `/viewer.html?url=${url}&name=${name}`;
     }
   }, []);
 
-  const handleBackToSelector = useCallback(() => {
-    setSelectedWorld(null);
-    setView('world-select');
-  }, []);
-
-  const handleSelectFallback = useCallback((world: World) => {
-    // Switch to a fallback world when current one fails to load
-    setSelectedWorld(world);
-  }, []);
-
-  // World selection screen
-  if (view === 'world-select') {
-    return <WorldSelector onWorldSelect={handleWorldSelect} />;
-  }
-
-  // Scene view with SceneManager
-  if (selectedWorld) {
-    return (
-      <SceneView
-        world={selectedWorld}
-        onBack={handleBackToSelector}
-        onSelectFallback={handleSelectFallback}
-      />
-    );
-  }
-
-  // Fallback - should not reach here
   return <WorldSelector onWorldSelect={handleWorldSelect} />;
 }
 

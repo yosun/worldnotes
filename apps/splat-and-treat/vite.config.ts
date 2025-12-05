@@ -11,9 +11,16 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    hmr: {
+      overlay: true,
+    },
+  },
+  optimizeDeps: {
+    exclude: ['@sparkjsdev/spark'],
   },
   build: {
     outDir: 'dist',
     sourcemap: true,
+    target: 'esnext',
   },
 });

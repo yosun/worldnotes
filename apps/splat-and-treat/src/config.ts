@@ -21,40 +21,60 @@ export const SLARTIBARTFAST_EMAIL = 'slartibartfast@magrathea.email';
 /**
  * Available worlds for selection.
  * Add your own .spz worlds by adding entries to this array.
+ * 
+ * To add a real world:
+ * 1. Host your .spz file somewhere accessible (S3, CDN, etc.)
+ * 2. Add an entry with the spzUrl pointing to your file
+ * 3. Optionally add a thumbnail image
+ * 
+ * Example SPZ files from SparkJS demos:
+ * - https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bonsai/bonsai-7k-mini.spz
+ * - https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bicycle/bicycle-7k-mini.spz
  */
 export const worlds: World[] = [
+ 
   {
-    id: 'haunted-mansion',
-    name: 'Haunted Mansion',
-    thumbnail: '/thumbnails/haunted-mansion.png',
-    spzUrl: 'https://example.com/worlds/haunted-mansion.spz',
-    description: 'A spooky Victorian mansion with creaky floors and mysterious shadows',
-  },
-  {
-    id: 'pumpkin-patch',
-    name: 'Pumpkin Patch',
-    thumbnail: '/thumbnails/pumpkin-patch.png',
-    spzUrl: 'https://example.com/worlds/pumpkin-patch.spz',
-    description: 'A moonlit field of pumpkins ready for Halloween night',
-  },
-  {
-    id: 'graveyard',
-    name: 'Spooky Graveyard',
-    thumbnail: '/thumbnails/graveyard.png',
-    spzUrl: 'https://example.com/worlds/graveyard.spz',
-    description: 'An ancient cemetery with fog rolling between the tombstones',
-  },
+    id: 'scary_tree_stage_cobwebs',
+    name: 'Gnarly Fainting Fright',
+    thumbnail: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/scary_tree_stage_cobwebs.png',
+    spzUrl: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/scary_tree_stage_cobwebs.spz',
+    description: 'A Scary Tree with Cobwebs all over Vintage Fainting Lounger Couches',
+    startPosition: {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0 },
+    },
+  },{
+    id: 'Shining-inspired-hotel',
+    name: 'Scary Hotel Lobby',
+    thumbnail: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/Shining-inspired-hotel.png',
+    spzUrl: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/Shining-inspired-hotel.spz',
+    description: 'A Shining-inspired hotel ... or does it feel like a corporate hotel that really needs a refresh?',
+    startPosition: {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0 },
+    },
+  },{
+    id: 'haunted-theatre-stage',
+    name: 'Haunted Theatre Stage',
+    thumbnail: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/haunted-theatre-stage.png',
+    spzUrl: 'https://s3.amazonaws.com/worldmatica/splat_n_treat/haunted-theatre-stage.spz',
+    description: 'Angels and Minsters of Grace, Defend us! Behold - thy haunted theatre stage!',
+    startPosition: {
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0 },
+    },
+  } ,
   {
     id: SPECIAL_WORLD_IDS.EMPTY,
     name: 'Create Empty World',
-    thumbnail: '/thumbnails/empty.png',
+    thumbnail: '',
     spzUrl: '',
     description: 'Start with a blank canvas and build your own world',
   },
   {
     id: SPECIAL_WORLD_IDS.REQUEST,
     name: 'Request from Slartibartfast',
-    thumbnail: '/thumbnails/slartibartfast.png',
+    thumbnail: '',
     spzUrl: '',
     description: 'Describe your dream world and our master world-builder will create it for you',
   },

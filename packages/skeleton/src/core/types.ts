@@ -1,9 +1,10 @@
 /**
  * Core type definitions for Splat and Treat skeleton.
  * These types define the data structures used throughout the application.
+ *
+ * NOTE: Types are framework-agnostic (no Three.js imports) since the 3D viewer
+ * uses vanilla JS with SparkJS loaded via CDN importmap.
  */
-
-import type { Vector3, Euler } from 'three';
 
 /**
  * Application mode - either editing or exploring the world
@@ -14,6 +15,25 @@ export type AppMode = 'edit' | 'explore';
  * Type of treat that can be placed in the world
  */
 export type TreatType = 'custom' | 'library' | 'waypoint' | 'ai-generated' | 'message-bottle';
+
+/**
+ * 3D vector representation (x, y, z coordinates)
+ */
+export interface Vector3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Euler rotation representation (x, y, z angles with optional order)
+ */
+export interface Euler {
+  x: number;
+  y: number;
+  z: number;
+  order?: string;
+}
 
 /**
  * Metadata attached to a treat
@@ -48,38 +68,6 @@ export interface Treat {
 }
 
 /**
- * Serializable version of Vector3 for JSON storage
- */
-export interface SerializableVector3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-/**
- * Serializable version of Euler for JSON storage
- */
-export interface SerializableEuler {
-  x: number;
-  y: number;
-  z: number;
-  order?: string;
-}
-
-/**
- * Serializable version of Treat for JSON storage
- */
-export interface SerializableTreat {
-  id: string;
-  type: TreatType;
-  glbUrl: string;
-  position: SerializableVector3;
-  rotation: SerializableEuler;
-  scale: SerializableVector3;
-  metadata: TreatMetadata;
-}
-
-/**
  * Action triggered when a waypoint is reached
  */
 export interface WaypointAction {
@@ -102,17 +90,6 @@ export interface Waypoint {
   /** Order within the path */
   order?: number;
   /** Action to trigger when reached */
-  triggerAction?: WaypointAction;
-}
-
-/**
- * Serializable version of Waypoint for JSON storage
- */
-export interface SerializableWaypoint {
-  id: string;
-  position: SerializableVector3;
-  pathId?: string;
-  order?: number;
   triggerAction?: WaypointAction;
 }
 
@@ -141,6 +118,38 @@ export interface RaycastHit {
 }
 
 /**
+ * RaycastSystem interface for performing raycasts against splat geometry.
+ * Wraps SparkJS built-in raycasting functionality.
+ */
+export interface RaycastSystem {
+  /**
+   * Perform raycast from screen coordinates (normalized -1 to 1).
+   * @param x - Normalized x coordinate (-1 = left, 1 = right)
+   * @param y - Normalized y coordinate (-1 = bottom, 1 = top)
+   * @returns Hit result or null if no intersection
+   */
+  raycastFromScreen(x: number, y: number): RaycastHit | null;
+
+  /**
+   * Perform raycast from world ray.
+   * @param origin - Ray origin in world space
+   * @param direction - Ray direction (normalized)
+   * @returns Hit result or null if no intersection
+   */
+  raycastFromRay(origin: Vector3, direction: Vector3): RaycastHit | null;
+
+  /**
+   * Perform raycast from a mouse/touch event.
+   * Convenience method that converts client coordinates to normalized coordinates.
+   * @param clientX - Client X coordinate from event
+   * @param clientY - Client Y coordinate from event
+   * @param canvas - The canvas element for coordinate conversion
+   * @returns Hit result or null if no intersection
+   */
+  raycastFromEvent(clientX: number, clientY: number, canvas: HTMLCanvasElement): RaycastHit | null;
+}
+
+/**
  * Complete scene state for persistence
  */
 export interface SceneState {
@@ -149,9 +158,9 @@ export interface SceneState {
   /** URL of the splat world */
   worldUrl: string;
   /** All placed treats */
-  treats: SerializableTreat[];
+  treats: Treat[];
   /** All waypoints */
-  waypoints: SerializableWaypoint[];
+  waypoints: Waypoint[];
   /** All waypoint paths */
   paths: WaypointPath[];
   /** Creation timestamp */
@@ -187,6 +196,16 @@ export interface TokenPackage {
 }
 
 /**
+ * Starting camera position and rotation for a world
+ */
+export interface WorldStartPosition {
+  /** Camera position (x, y, z) */
+  position: Vector3;
+  /** Camera rotation in radians (pitch, yaw) */
+  rotation?: { x: number; y: number };
+}
+
+/**
  * World configuration for selection screen
  */
 export interface World {
@@ -200,4 +219,30 @@ export interface World {
   spzUrl: string;
   /** Description text */
   description: string;
+  /** Optional starting camera position */
+  startPosition?: WorldStartPosition;
+}
+
+/**
+ * Callback for mode change events
+ */
+export type ModeChangeCallback = (mode: AppMode) => void;
+
+/**
+ * Mode manager interface for switching between Edit and Explore modes.
+ * Manages application state and emits events on mode changes.
+ */
+export interface ModeManager {
+  /** Get the current application mode */
+  getMode(): AppMode;
+  /** Set the application mode */
+  setMode(mode: AppMode): void;
+  /** Toggle between edit and explore modes */
+  toggle(): void;
+  /** Subscribe to mode change events. Returns unsubscribe function. */
+  onModeChange(callback: ModeChangeCallback): () => void;
+  /** Check if currently in edit mode */
+  isEditMode(): boolean;
+  /** Check if currently in explore mode */
+  isExploreMode(): boolean;
 }

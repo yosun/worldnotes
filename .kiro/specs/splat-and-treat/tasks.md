@@ -64,8 +64,8 @@
 
 ## Phase 2: Edit Mode and Treat Placement
 
-- [ ] 6. Implement core types and interfaces
-  - [ ] 6.1 Create shared type definitions
+- [x] 6. Implement core types and interfaces
+  - [x] 6.1 Create shared type definitions
     - Define Treat, TreatType, TreatMetadata interfaces with clear JSDoc
     - Define Waypoint, WaypointPath, WaypointAction interfaces
     - Define SceneState, ShareableScene interfaces
@@ -76,20 +76,20 @@
     - **Property 6: Scene state round-trip**
     - **Validates: Requirements 6.3, 6.4**
 
-- [ ] 7. Implement Edit/Explore Mode Manager
-  - [ ] 7.1 Create ModeManager
+- [x] 7. Implement Edit/Explore Mode Manager
+  - [x] 7.1 Create ModeManager
     - 'edit' and 'explore' states
     - Default to Explore mode on load
     - Emit events on mode change for UI updates
     - _Requirements: 0.1, 0.2, 0.3_
-  - [ ] 7.2 Create mode toggle UI
+  - [x] 7.2 Create mode toggle UI
     - Visible toggle button in UI corner
     - Show/hide editing panels based on mode
     - _Requirements: 0.4, 0.5, 0.6_
 
-- [ ] 8. Implement RaycastSystem
-  - [ ] 8.1 Create RaycastSystem class
-    - Use SparkJS built-in raycasting
+- [x] 8. Implement RaycastSystem
+  - [x] 8.1 Create RaycastSystem class
+    - Use SparkJS built-in raycasting, c.f. example https://github.com/sparkjsdev/spark/blob/main/examples/raycasting/index.html
     - Wrap SparkJS raycast in raycastFromScreen() method
     - Extract hit position and surface normal from SparkJS hit result
     - _Requirements: 2.1, 2.2, 2.3_
@@ -100,22 +100,22 @@
     - **Property 2: Treat orientation matches surface normal**
     - **Validates: Requirements 2.3**
 
-- [ ] 9. Implement TreatManager
-  - [ ] 9.1 Create TreatManager class
+- [x] 9. Implement TreatManager
+  - [x] 9.1 Create TreatManager class
     - Use Three.js GLTFLoader for GLB loading
     - Implement selectTreat() to load GLB and prepare for placement
     - Implement placeTreat() to instantiate at raycast hit position
     - Use Three.js lookAt() or quaternion for surface normal alignment
     - Implement removeTreat() and getTreat()
     - _Requirements: 2.2, 2.3, 2.4, 3.2_
-  - [ ] 9.2 Create basic treat selection panel
+  - [x] 9.2 Create basic treat selection panel
     - Custom GLB URL input with text attachment
     - Message in a Bottle preset button (https://s3.amazonaws.com/worldmatica/message_in_a_bottle.glb)
     - _Requirements: 3.1, 3.6_
-  - [ ] 9.3 Implement treat click interaction
+  - [x] 9.3 Implement treat click interaction
     - Handle onClick to display attached text messages
     - _Requirements: 3.4_
-  - [ ]\* 9.4 Write property test for text metadata storage
+  - [x] 9.4 Write property test for text metadata storage
     - **Property 4: Text metadata storage**
     - **Validates: Requirements 3.3**
   - [ ]\* 9.5 Write property test for text length constraint

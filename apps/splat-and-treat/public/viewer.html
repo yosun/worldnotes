@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Splat Viewer - Splat and Treat</title>
+  <style>
+    body { margin: 0; background: #1a1a2e; overflow: hidden; touch-action: none; }
+    .overlay {
+      position: absolute;
+      z-index: 10;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .back-btn {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(138, 43, 226, 0.8);
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .back-btn:hover { background: rgba(138, 43, 226, 1); }
+    .info {
+      position: absolute;
+      bottom: 1rem;
+      left: 1rem;
+      background: rgba(0,0,0,0.6);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      color: white;
+    }
+    .info.mobile { bottom: 10rem; }
+    .info h3 { color: #ff6600; margin: 0 0 0.25rem 0; }
+    .info p { color: #999; font-size: 0.875rem; margin: 0; }
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #1a1a2e;
+      z-index: 30;
+      color: white;
+      font-family: system-ui;
+    }
+    .loading.hidden { display: none; }
+    .spinner {
+      width: 4rem;
+      height: 4rem;
+      border: 4px solid #ff6600;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-container {
+      width: 200px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #ff6600, #ff9933);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.15s ease-out;
+    }
+    .progress-text {
+      margin-top: 0.5rem;
+      font-size: 0.875rem;
+      color: #999;
+    }
+    /* Mobile joystick */
+    #joystick-zone {
+      position: absolute;
+      bottom: 2rem;
+      left: 2rem;
+      width: 120px;
+      height: 120px;
+      z-index: 20;
+      display: none;
+    }
+    #joystick-zone.visible { display: block; }
+    #joystick-base {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+    #joystick-stick {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(255, 102, 0, 0.7);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    /* Mode toggle button */
+    .mode-toggle {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.5rem 1rem;
+      background: rgba(255, 102, 0, 0.8);
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .mode-toggle:hover { background: rgba(255, 102, 0, 1); }
+    .mode-toggle:active { transform: scale(0.98); }
+    .mode-toggle .icon { font-size: 1.2rem; }
+    .mode-toggle[data-mode="edit"] { background: rgba(138, 43, 226, 0.8); }
+    .mode-toggle[data-mode="edit"]:hover { background: rgba(138, 43, 226, 1); }
+
+    /* Mode indicator badge */
+    .mode-badge {
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 0.25rem 0.75rem;
+      background: rgba(0, 0, 0, 0.6);
+      color: #ff6600;
+      border-radius: 1rem;
+      font-size: 0.75rem;
+      font-family: system-ui, -apple-system, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .mode-badge.visible { opacity: 1; }
+    /* Treat selection panel */
+    .treat-panel {
+      position: absolute;
+      top: 4rem;
+      right: 1rem;
+      width: 300px;
+      background: rgba(0, 0, 0, 0.9);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      color: white;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: none;
+      border: 1px solid rgba(138, 43, 226, 0.5);
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+    }
+    .treat-panel.visible { display: block; }
+    .treat-panel h4 {
+      margin: 0 0 0.75rem 0;
+      color: #ff6600;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .treat-panel label {
+      display: block;
+      margin-bottom: 0.25rem;
+      color: #ccc;
+      font-size: 0.75rem;
+    }
+    .treat-panel input[type="text"],
+    .treat-panel textarea {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid rgba(138, 43, 226, 0.5);
+      border-radius: 0.375rem;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      box-sizing: border-box;
+    }
+    .treat-panel input[type="text"]:focus,
+    .treat-panel textarea:focus {
+      outline: none;
+      border-color: #ff6600;
+    }
+    .treat-panel textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    .treat-panel .char-count {
+      text-align: right;
+      font-size: 0.7rem;
+      color: #666;
+      margin-top: -0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .treat-panel .char-count.warning { color: #ff6600; }
+    .treat-panel .char-count.error { color: #ff0000; }
+    .treat-panel button {
+      width: 100%;
+      padding: 0.5rem;
+      border: none;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .treat-panel button:active { transform: scale(0.98); }
+    .treat-panel .preset-btn {
+      background: rgba(138, 43, 226, 0.6);
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .treat-panel .preset-btn:hover { background: rgba(138, 43, 226, 0.8); }
+    .treat-panel .preset-btn.selected {
+      background: rgba(255, 102, 0, 0.8);
+      border: 2px solid #ff6600;
+    }
+    .treat-panel .load-btn {
+      background: rgba(255, 102, 0, 0.8);
+      color: white;
+    }
+    .treat-panel .load-btn:hover { background: rgba(255, 102, 0, 1); }
+    .treat-panel .load-btn:disabled {
+      background: rgba(100, 100, 100, 0.5);
+      cursor: not-allowed;
+    }
+    .treat-panel .divider {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      margin: 1rem 0;
+    }
+    .treat-panel .status {
+      padding: 0.5rem;
+      border-radius: 0.375rem;
+      font-size: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .treat-panel .status.ready {
+      background: rgba(0, 255, 0, 0.2);
+      color: #00ff00;
+    }
+    .treat-panel .status.loading {
+      background: rgba(255, 165, 0, 0.2);
+      color: #ffa500;
+    }
+    .treat-panel .status.error {
+      background: rgba(255, 0, 0, 0.2);
+      color: #ff6666;
+    }
+    .treat-panel .placed-treats {
+      margin-top: 1rem;
+    }
+    .treat-panel .placed-treats h5 {
+      margin: 0 0 0.5rem 0;
+      color: #999;
+      font-size: 0.75rem;
+    }
+    .treat-panel .treat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.375rem 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 0.25rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.75rem;
+    }
+    .treat-panel .treat-item .treat-name {
+      color: #ccc;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 180px;
+    }
+    .treat-panel .treat-item .delete-btn {
+      background: rgba(255, 0, 0, 0.3);
+      color: white;
+      border: none;
+      border-radius: 0.25rem;
+      padding: 0.125rem 0.375rem;
+      cursor: pointer;
+      font-size: 0.7rem;
+      width: auto;
+      margin: 0;
+    }
+    .treat-panel .treat-item .delete-btn:hover {
+      background: rgba(255, 0, 0, 0.6);
+    }
+    /* Text message modal */
+    .message-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .message-modal.visible { display: flex; }
+    .message-modal .modal-content {
+      background: rgba(26, 26, 46, 0.95);
+      border: 2px solid #ff6600;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      max-width: 400px;
+      width: 90%;
+      color: white;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .message-modal h3 {
+      margin: 0 0 1rem 0;
+      color: #ff6600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .message-modal p {
+      margin: 0;
+      line-height: 1.6;
+      color: #eee;
+    }
+    .message-modal .close-btn {
+      margin-top: 1rem;
+      width: 100%;
+      padding: 0.5rem;
+      background: rgba(138, 43, 226, 0.8);
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .message-modal .close-btn:hover { background: rgba(138, 43, 226, 1); }
+
+    /* Admin Camera Calibration Panel */
+    .admin-panel {
+      position: absolute;
+      bottom: 1rem;
+      right: 1rem;
+      width: 320px;
+      background: rgba(0, 0, 0, 0.95);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      color: white;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.75rem;
+      display: none;
+      border: 2px solid rgba(0, 255, 136, 0.6);
+      z-index: 50;
+    }
+    .admin-panel.visible { display: block; }
+    .admin-panel h4 {
+      margin: 0 0 0.75rem 0;
+      color: #00ff88;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .admin-panel .coord-group {
+      margin-bottom: 0.75rem;
+    }
+    .admin-panel .coord-label {
+      color: #888;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .admin-panel .coord-value {
+      background: rgba(0, 255, 136, 0.1);
+      padding: 0.375rem 0.5rem;
+      border-radius: 0.25rem;
+      font-family: 'Monaco', 'Menlo', monospace;
+      color: #00ff88;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .admin-panel .coord-value span { flex: 1; }
+    .admin-panel .copy-btn {
+      background: rgba(0, 255, 136, 0.3);
+      border: none;
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      cursor: pointer;
+      font-size: 0.65rem;
+      margin-left: 0.5rem;
+    }
+    .admin-panel .copy-btn:hover { background: rgba(0, 255, 136, 0.5); }
+    .admin-panel .copy-btn.copied { background: rgba(0, 255, 136, 0.8); }
+    .admin-panel .divider {
+      border-top: 1px solid rgba(0, 255, 136, 0.2);
+      margin: 0.75rem 0;
+    }
+    .admin-panel .hotkeys {
+      color: #666;
+      font-size: 0.65rem;
+      line-height: 1.6;
+    }
+    .admin-panel .hotkeys kbd {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.125rem 0.375rem;
+      border-radius: 0.25rem;
+      margin-right: 0.25rem;
+    }
+    .admin-panel .export-btn {
+      width: 100%;
+      background: rgba(0, 255, 136, 0.6);
+      border: none;
+      color: #000;
+      padding: 0.5rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-top: 0.5rem;
+    }
+    .admin-panel .export-btn:hover { background: rgba(0, 255, 136, 0.8); }
+    .admin-toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 255, 136, 0.9);
+      color: #000;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-family: system-ui;
+      font-weight: bold;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .admin-toast.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p id="loading-status">Loading world...</p>
+    <div class="progress-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <p class="progress-text" id="progress-text">0%</p>
+  </div>
+  
+  <button class="back-btn overlay" onclick="window.location.href='/'">← Back to Worlds</button>
+  
+  <!-- Mode toggle button -->
+  <button class="mode-toggle overlay" id="mode-toggle" data-mode="explore">
+    <span class="icon">👁️</span>
+    <span id="mode-label">Explore</span>
+  </button>
+  
+  <!-- Mode change indicator -->
+  <div class="mode-badge overlay" id="mode-badge">Explore Mode</div>
+  
+  <!-- Treat selection panel (shown in edit mode) -->
+  <div class="treat-panel overlay" id="treat-panel">
+    <h4>🎃 Place Treats</h4>
+    
+    <!-- Status indicator -->
+    <div class="status" id="treat-status" style="display: none;"></div>
+    
+    <!-- Preset buttons -->
+    <label>Quick Presets</label>
+    <button class="preset-btn" id="preset-bottle" data-url="https://s3.amazonaws.com/worldmatica/message_in_a_bottle.glb">
+      <span>🍾</span> Message in a Bottle
+    </button>
+    
+    <div class="divider"></div>
+    
+    <!-- Custom GLB input -->
+    <label for="glb-url">Custom GLB URL</label>
+    <input type="text" id="glb-url" placeholder="https://example.com/model.glb" />
+    
+    <label for="treat-text">Attached Message (optional)</label>
+    <textarea id="treat-text" placeholder="Leave a message for others to find..." maxlength="280"></textarea>
+    <div class="char-count" id="char-count">0 / 280</div>
+    
+    <!-- Position offset for models with off-center pivots -->
+    <label>Position Offset (Y = up)</label>
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+      <input type="number" id="offset-x" placeholder="X" value="0" step="0.1" style="width: 33%;" />
+      <input type="number" id="offset-y" placeholder="Y" value="0" step="0.1" style="width: 33%;" />
+      <input type="number" id="offset-z" placeholder="Z" value="0" step="0.1" style="width: 33%;" />
+    </div>
+    
+    <button class="load-btn" id="load-treat-btn">Load & Select Treat</button>
+    
+    <!-- Placed treats list -->
+    <div class="placed-treats" id="placed-treats-section" style="display: none;">
+      <div class="divider"></div>
+      <h5>Placed Treats</h5>
+      <div id="placed-treats-list"></div>
+    </div>
+  </div>
+  
+  <!-- Message display modal -->
+  <div class="message-modal" id="message-modal">
+    <div class="modal-content">
+      <h3><span>📜</span> Message Found!</h3>
+      <p id="message-content"></p>
+      <button class="close-btn" id="close-modal-btn">Close</button>
+    </div>
+  </div>
+  
+  <div class="info overlay" id="info">
+    <h3 id="world-name">Loading...</h3>
+    <p id="controls-hint">Click to look • WASD to move</p>
+  </div>
+
+  <!-- Admin Camera Calibration Panel -->
+  <div class="admin-panel overlay" id="admin-panel">
+    <h4>🎯 Camera Calibration</h4>
+    <div class="coord-group">
+      <div class="coord-label">Position (x, y, z)</div>
+      <div class="coord-value">
+        <span id="admin-pos">0.00, 0.00, 0.00</span>
+        <button class="copy-btn" id="copy-pos">Copy</button>
+      </div>
+    </div>
+    <div class="coord-group">
+      <div class="coord-label">Rotation (pitch, yaw)</div>
+      <div class="coord-value">
+        <span id="admin-rot">0.00, 0.00</span>
+        <button class="copy-btn" id="copy-rot">Copy</button>
+      </div>
+    </div>
+    <div class="coord-group">
+      <div class="coord-label">Camera Direction</div>
+      <div class="coord-value">
+        <span id="admin-dir">0.00, 0.00, 0.00</span>
+        <button class="copy-btn" id="copy-dir">Copy</button>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <button class="export-btn" id="export-config">📋 Copy Config Object</button>
+    <div class="divider"></div>
+    <div class="hotkeys">
+      <kbd>C</kbd> Copy position<br>
+      <kbd>V</kbd> Copy full config<br>
+      <kbd>R</kbd> Reset to origin
+    </div>
+  </div>
+  <div class="admin-toast" id="admin-toast">Copied!</div>
+
+  <!-- Mobile joystick -->
+  <div id="joystick-zone">
+    <div id="joystick-base"></div>
+    <div id="joystick-stick"></div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js",
+      "@sparkjsdev/spark": "https://cdn.jsdelivr.net/npm/@sparkjsdev/spark@0.1.10/dist/spark.module.js"
+    }
+  }
+  </script>
+  
+  <script type="module">
+    import * as THREE from "three";
+    import { SplatMesh, SplatLoader, dyno } from "@sparkjsdev/spark";
+
+    // ============================================
+    // Deep Meditation Load-In Effect
+    // ============================================
+    
+    // Animation time for shader effects
+    const animateT = dyno.dynoFloat(0);
+    const loadInProgress = dyno.dynoFloat(0); // 0 = effect active, 1 = fully loaded
+    
+    /**
+     * Applies the Deep Meditation shader effect during world load-in.
+     * Creates a mesmerizing fractal visualization that fades to normal view.
+     */
+    function applyLoadInEffect(mesh) {
+      mesh.objectModifier = dyno.dynoBlock(
+        { gsplat: dyno.Gsplat },
+        { gsplat: dyno.Gsplat },
+        ({ gsplat }) => {
+          const d = new dyno.Dyno({
+            inTypes: { 
+              gsplat: dyno.Gsplat, 
+              t: 'float', 
+              progress: 'float'
+            },
+            outTypes: { gsplat: dyno.Gsplat },
+            globals: () => [
+              dyno.unindent(`
+                // Deep Meditation fractal effect
+                vec4 fractal2(vec3 center, vec3 scales, vec4 rgba, float t, float intensity) {
+                  vec3 pos = center;
+                  float splatSize = length(scales);
+                  vec3 p = pos * 0.65;
+                  pos.y += 2.0;
+                  float c = 0.0;
+                  float l, l2 = length(p);
+                  float m = 100.0;
+                  
+                  for (int i = 0; i < 10; i++) {
+                    p.xyz = abs(p.xyz) / dot(p.xyz, p.xyz) - 0.8;
+                    l = length(p.xyz);
+                    c += exp(-1.0 * abs(l - l2) * (1.0 + sin(t * 1.5 + pos.y)));
+                    l2 = length(p.xyz);
+                    m = min(m, length(p.xyz));
+                  }
+                  
+                  c = smoothstep(0.3, 0.5, m + sin(t * 1.5 + pos.y * 0.5)) + c * 0.1;              
+                  return vec4(vec3(length(rgba.rgb)) * vec3(c, c*c, c*c*c) * intensity, 
+                            rgba.a * exp(-20.0 * splatSize) * m * intensity);
+                }
+
+                // Gentle breathing animation
+                vec3 breathAnimation(vec3 pos, float t, float intensity) {
+                  float b = sin(t * 1.5) * intensity;
+                  pos.y += 1.2;
+                  pos *= 1.0 + exp(-3.0 * length(pos)) * b * 0.3;
+                  pos.y -= 1.2;
+                  return pos;
+                }
+              `)
+            ],
+            statements: ({ inputs, outputs }) => dyno.unindentLines(`
+              ${outputs.gsplat} = ${inputs.gsplat};
+              
+              vec3 localPos = ${inputs.gsplat}.center;
+              vec3 splatScales = ${inputs.gsplat}.scales;
+              vec4 splatColor = ${inputs.gsplat}.rgba;
+              
+              // Calculate effect intensity (fades out as progress approaches 1)
+              float effectIntensity = 1.0 - ${inputs.progress};
+              effectIntensity = effectIntensity * effectIntensity; // Ease out
+              
+              if (effectIntensity > 0.01) {
+                // Apply Deep Meditation fractal coloring
+                vec4 effectColor = fractal2(localPos, splatScales, splatColor, ${inputs.t}, effectIntensity);
+                ${outputs.gsplat}.rgba = mix(splatColor, effectColor, effectIntensity * 0.8);
+                
+                // Apply subtle breathing animation
+                ${outputs.gsplat}.center = breathAnimation(localPos, ${inputs.t}, effectIntensity);
+              }
+            `),
+          });
+
+          gsplat = d.apply({ 
+            gsplat, 
+            t: animateT,
+            progress: loadInProgress
+          }).gsplat;
+          
+          return { gsplat };
+        }
+      );
+      
+      mesh.updateGenerator();
+    }
+    
+    // ============================================
+    // GhostPreview - Semi-transparent preview mesh
+    // ============================================
+
+    /**
+     * Creates a GhostPreview for showing a semi-transparent preview of a treat
+     * before placement is confirmed.
+     * 
+     * Features:
+     * - 50% opacity for distinction from placed treats
+     * - Real-time position updates from raycast hits
+     * - Surface normal alignment
+     * - Invalid state visualization (red tint when no valid surface)
+     * 
+     * @param {THREE.Scene} scene - The Three.js scene to add the preview to
+     * @returns {Object} GhostPreview interface
+     */
+    function createGhostPreview(scene) {
+      const GHOST_OPACITY = 0.5;
+      const INVALID_COLOR = new THREE.Color(0xff0000); // Red tint for invalid state
+      const VALID_COLOR = new THREE.Color(0x88ccff);   // Slight blue tint for valid state
+      
+      // State
+      let previewMesh = null;
+      let originalMaterials = new Map(); // Store original material colors for restoration
+      let isVisible = false;
+      let isValid = true;
+      let currentRotationY = 0;
+      let currentScale = 1.0;
+      let loader = null;
+      let cachedModelMinY = 0;
+
+      /**
+       * Initialize the GLTFLoader (lazy load from CDN)
+       */
+      async function initLoader() {
+        if (loader) return loader;
+        const { GLTFLoader } = await import(
+          'https://cdn.jsdelivr.net/npm/three@0.178.0/examples/jsm/loaders/GLTFLoader.js'
+        );
+        loader = new GLTFLoader();
+        return loader;
+      }
+
+      /**
+       * Set all materials in a mesh to ghost opacity (50%)
+       * @param {THREE.Object3D} mesh - The mesh to modify
+       */
+      function setGhostMaterials(mesh) {
+        originalMaterials.clear();
+        
+        mesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            
+            materials.forEach((mat, index) => {
+              // Clone material to avoid affecting other instances
+              const clonedMat = mat.clone();
+              
+              // Store original color for restoration
+              const key = `${child.uuid}-${index}`;
+              originalMaterials.set(key, {
+                color: clonedMat.color ? clonedMat.color.clone() : null,
+                emissive: clonedMat.emissive ? clonedMat.emissive.clone() : null,
+              });
+              
+              // Set ghost properties
+              clonedMat.transparent = true;
+              clonedMat.opacity = GHOST_OPACITY;
+              clonedMat.depthWrite = false; // Prevent z-fighting with placed treats
+              
+              // Apply slight blue tint for valid state
+              if (clonedMat.color) {
+                clonedMat.color.lerp(VALID_COLOR, 0.2);
+              }
+              
+              // Assign cloned material
+              if (Array.isArray(child.material)) {
+                child.material[index] = clonedMat;
+              } else {
+                child.material = clonedMat;
+              }
+            });
+          }
+        });
+      }
+
+      /**
+       * Update material tint based on validity state
+       * @param {boolean} valid - Whether the current position is valid
+       */
+      function updateMaterialTint(valid) {
+        if (!previewMesh) return;
+        
+        const tintColor = valid ? VALID_COLOR : INVALID_COLOR;
+        const tintStrength = valid ? 0.2 : 0.5; // Stronger red tint when invalid
+        
+        previewMesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            
+            materials.forEach((mat, index) => {
+              const key = `${child.uuid}-${index}`;
+              const original = originalMaterials.get(key);
+              
+              if (original && original.color && mat.color) {
+                // Reset to original color then apply tint
+                mat.color.copy(original.color);
+                mat.color.lerp(tintColor, tintStrength);
+              }
+            });
+          }
+        });
+      }
+
+      /**
+       * Orient mesh to align with a surface normal
+       * @param {THREE.Object3D} mesh - The mesh to orient
+       * @param {Object} normal - Surface normal {x, y, z}
+       */
+      function orientToNormal(mesh, normal) {
+        const up = new THREE.Vector3(0, 1, 0);
+        const normalVec = new THREE.Vector3(normal.x, normal.y, normal.z).normalize();
+        
+        // Create base quaternion from surface normal
+        const baseQuaternion = new THREE.Quaternion();
+        baseQuaternion.setFromUnitVectors(up, normalVec);
+        
+        // Apply Y-axis rotation on top of surface alignment
+        const yRotation = new THREE.Quaternion();
+        yRotation.setFromAxisAngle(normalVec, currentRotationY);
+        
+        // Combine: first align to surface, then rotate around surface normal
+        mesh.quaternion.copy(baseQuaternion);
+        mesh.quaternion.premultiply(yRotation);
+      }
+
+      return {
+        /**
+         * Load a GLB as the ghost preview
+         * @param {string} glbUrl - URL to the GLB file
+         * @returns {Promise<void>}
+         */
+        async load(glbUrl) {
+          // Dispose previous preview
+          this.dispose();
+          
+          const gltfLoader = await initLoader();
+          
+          return new Promise((resolve, reject) => {
+            gltfLoader.load(
+              glbUrl,
+              (gltf) => {
+                previewMesh = gltf.scene.clone();
+                
+                // Calculate bounding box for base offset
+                const boundingBox = new THREE.Box3().setFromObject(previewMesh);
+                cachedModelMinY = boundingBox.min.y;
+                
+                // Set ghost materials (50% opacity)
+                setGhostMaterials(previewMesh);
+                
+                // Set render order to render after splats but before solid treats
+                previewMesh.renderOrder = 0.5;
+                previewMesh.traverse((child) => {
+                  if (child.isMesh) {
+                    child.renderOrder = 0.5;
+                  }
+                });
+                
+                // Initially hidden
+                previewMesh.visible = false;
+                isVisible = false;
+                isValid = true;
+                currentRotationY = 0;
+                currentScale = 1.0;
+                
+                // Add to scene
+                scene.add(previewMesh);
+                
+                resolve();
+              },
+              undefined,
+              (error) => {
+                reject(new Error(`Failed to load ghost preview: ${error.message || 'Unknown error'}`));
+              }
+            );
+          });
+        },
+
+        /**
+         * Update position from raycast hit
+         * @param {Object} hit - RaycastHit { position, normal, distance }
+         * @param {Object} offset - Optional offset {x, y, z}
+         */
+        setPosition(hit, offset = { x: 0, y: 0, z: 0 }) {
+          if (!previewMesh) return;
+          
+          // Orient to surface normal first
+          orientToNormal(previewMesh, hit.normal);
+          
+          // Calculate base offset along surface normal
+          const baseOffset = -cachedModelMinY;
+          const normalVec = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
+          const offsetAlongNormal = normalVec.clone().multiplyScalar(baseOffset);
+          
+          // Apply position with offsets
+          previewMesh.position.set(
+            hit.position.x + offset.x + offsetAlongNormal.x,
+            hit.position.y + offset.y + offsetAlongNormal.y,
+            hit.position.z + offset.z + offsetAlongNormal.z
+          );
+          
+          // Apply current scale
+          previewMesh.scale.setScalar(currentScale);
+        },
+
+        /**
+         * Set validity state (affects visibility and tint)
+         * @param {boolean} valid - Whether the current position is valid
+         */
+        setValid(valid) {
+          if (isValid === valid) return;
+          isValid = valid;
+          updateMaterialTint(valid);
+        },
+
+        /**
+         * Show the ghost preview
+         */
+        show() {
+          if (previewMesh) {
+            previewMesh.visible = true;
+            isVisible = true;
+          }
+        },
+
+        /**
+         * Hide the ghost preview
+         */
+        hide() {
+          if (previewMesh) {
+            previewMesh.visible = false;
+            isVisible = false;
+          }
+        },
+
+        /**
+         * Check if the ghost preview is visible
+         * @returns {boolean}
+         */
+        isVisible() {
+          return isVisible && previewMesh !== null;
+        },
+
+        /**
+         * Check if the ghost preview is in a valid state
+         * @returns {boolean}
+         */
+        isValidState() {
+          return isValid;
+        },
+
+        /**
+         * Set Y-axis rotation (in radians)
+         * @param {number} radians - Rotation angle
+         */
+        setRotationY(radians) {
+          currentRotationY = radians;
+          // Rotation will be applied on next setPosition call
+        },
+
+        /**
+         * Get current Y-axis rotation
+         * @returns {number} Rotation in radians
+         */
+        getRotationY() {
+          return currentRotationY;
+        },
+
+        /**
+         * Set uniform scale
+         * @param {number} scale - Scale factor
+         */
+        setScale(scale) {
+          currentScale = Math.max(0.1, Math.min(5.0, scale)); // Clamp to bounds
+          if (previewMesh) {
+            previewMesh.scale.setScalar(currentScale);
+          }
+        },
+
+        /**
+         * Get current scale
+         * @returns {number}
+         */
+        getScale() {
+          return currentScale;
+        },
+
+        /**
+         * Get current transform for placement
+         * @returns {Object|null} { position, rotation, scale } or null if no preview
+         */
+        getTransform() {
+          if (!previewMesh) return null;
+          
+          return {
+            position: {
+              x: previewMesh.position.x,
+              y: previewMesh.position.y,
+              z: previewMesh.position.z,
+            },
+            rotation: {
+              x: previewMesh.rotation.x,
+              y: previewMesh.rotation.y,
+              z: previewMesh.rotation.z,
+              order: previewMesh.rotation.order,
+            },
+            scale: {
+              x: previewMesh.scale.x,
+              y: previewMesh.scale.y,
+              z: previewMesh.scale.z,
+            },
+          };
+        },
+
+        /**
+         * Get the preview mesh (for advanced use)
+         * @returns {THREE.Object3D|null}
+         */
+        getMesh() {
+          return previewMesh;
+        },
+
+        /**
+         * Get the ghost opacity value
+         * @returns {number}
+         */
+        getOpacity() {
+          return GHOST_OPACITY;
+        },
+
+        /**
+         * Check if a mesh has ghost opacity applied
+         * @returns {boolean}
+         */
+        hasGhostOpacity() {
+          if (!previewMesh) return false;
+          
+          let hasCorrectOpacity = true;
+          previewMesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+              const materials = Array.isArray(child.material) ? child.material : [child.material];
+              materials.forEach((mat) => {
+                if (mat.opacity !== GHOST_OPACITY) {
+                  hasCorrectOpacity = false;
+                }
+              });
+            }
+          });
+          return hasCorrectOpacity;
+        },
+
+        /**
+         * Dispose resources
+         */
+        dispose() {
+          if (previewMesh) {
+            scene.remove(previewMesh);
+            
+            previewMesh.traverse((child) => {
+              if (child.geometry) child.geometry.dispose();
+              if (child.material) {
+                if (Array.isArray(child.material)) {
+                  child.material.forEach((m) => m.dispose());
+                } else {
+                  child.material.dispose();
+                }
+              }
+            });
+            
+            previewMesh = null;
+          }
+          
+          originalMaterials.clear();
+          isVisible = false;
+          isValid = true;
+          currentRotationY = 0;
+          currentScale = 1.0;
+          cachedModelMinY = 0;
+        },
+      };
+    }
+
+    // ============================================
+    // RaycastSystem - Raycast against splat geometry
+    // ============================================
+
+    /**
+     * Creates a RaycastSystem for performing raycasts against splat geometry.
+     * Uses SparkJS built-in raycasting via Three.js Raycaster.
+     * 
+     * @param {THREE.Camera} camera - The camera for screen-to-world conversion
+     * @param {SplatMesh} splatMesh - The SparkJS SplatMesh to raycast against
+     * @returns {Object} RaycastSystem interface
+     */
+    function createRaycastSystem(camera, splatMesh) {
+      // Reusable objects to reduce GC pressure
+      const raycaster = new THREE.Raycaster();
+      const screenCoords = new THREE.Vector2();
+      const tempOrigin = new THREE.Vector3();
+      const tempDirection = new THREE.Vector3();
+
+      /**
+       * Convert a SparkJS/Three.js intersection to our RaycastHit format.
+       * @param {Object} intersection - Three.js intersection result
+       * @returns {Object|null} RaycastHit or null
+       */
+      function toRaycastHit(intersection) {
+        if (!intersection) return null;
+
+        // Extract position from intersection point
+        const position = {
+          x: intersection.point.x,
+          y: intersection.point.y,
+          z: intersection.point.z,
+        };
+
+        // Extract normal - SparkJS provides face normal or we compute from geometry
+        // Default to up vector if normal not available
+        let normal = { x: 0, y: 1, z: 0 };
+        if (intersection.face && intersection.face.normal) {
+          normal = {
+            x: intersection.face.normal.x,
+            y: intersection.face.normal.y,
+            z: intersection.face.normal.z,
+          };
+        } else if (intersection.normal) {
+          // Some SparkJS versions provide normal directly
+          normal = {
+            x: intersection.normal.x,
+            y: intersection.normal.y,
+            z: intersection.normal.z,
+          };
+        }
+
+        return {
+          position,
+          normal,
+          distance: intersection.distance,
+        };
+      }
+
+      return {
+        /**
+         * Perform raycast from normalized screen coordinates.
+         * @param {number} x - Normalized x (-1 to 1, left to right)
+         * @param {number} y - Normalized y (-1 to 1, bottom to top)
+         * @returns {Object|null} RaycastHit or null
+         */
+        raycastFromScreen(x, y) {
+          screenCoords.set(x, y);
+          raycaster.setFromCamera(screenCoords, camera);
+
+          // Raycast against the splat mesh
+          const intersections = raycaster.intersectObject(splatMesh, false);
+          
+          if (intersections.length > 0) {
+            return toRaycastHit(intersections[0]);
+          }
+          return null;
+        },
+
+        /**
+         * Perform raycast from world ray.
+         * @param {Object} origin - Ray origin {x, y, z}
+         * @param {Object} direction - Ray direction {x, y, z} (should be normalized)
+         * @returns {Object|null} RaycastHit or null
+         */
+        raycastFromRay(origin, direction) {
+          tempOrigin.set(origin.x, origin.y, origin.z);
+          tempDirection.set(direction.x, direction.y, direction.z).normalize();
+          
+          raycaster.set(tempOrigin, tempDirection);
+
+          const intersections = raycaster.intersectObject(splatMesh, false);
+          
+          if (intersections.length > 0) {
+            return toRaycastHit(intersections[0]);
+          }
+          return null;
+        },
+
+        /**
+         * Perform raycast from mouse/touch event coordinates.
+         * Convenience method that handles coordinate conversion.
+         * @param {number} clientX - Client X from event
+         * @param {number} clientY - Client Y from event
+         * @param {HTMLCanvasElement} canvas - Canvas element for bounds
+         * @returns {Object|null} RaycastHit or null
+         */
+        raycastFromEvent(clientX, clientY, canvas) {
+          const rect = canvas.getBoundingClientRect();
+          // Convert to normalized device coordinates (-1 to 1)
+          const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+          const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+          
+          return this.raycastFromScreen(x, y);
+        },
+
+        /**
+         * Get the underlying Three.js Raycaster for advanced use.
+         * @returns {THREE.Raycaster}
+         */
+        getRaycaster() {
+          return raycaster;
+        },
+      };
+    }
+
+    // ============================================
+    // TreatManager - GLB loading and placement
+    // ============================================
+
+    /**
+     * Creates a TreatManager for loading, placing, and managing treats.
+     * Uses Three.js GLTFLoader for GLB loading.
+     * 
+     * @param {THREE.Scene} scene - The Three.js scene to add treats to
+     * @returns {Object} TreatManager interface
+     */
+    function createTreatManager(scene) {
+      // Import GLTFLoader dynamically
+      const GLTFLoader = THREE.GLTFLoader || null;
+      let loader = null;
+      
+      // State
+      const treats = new Map(); // id -> { treat, mesh }
+      let selectedGlbUrl = null;
+      let selectedType = 'custom';
+      let preloadedModel = null;
+      let cachedModelMinY = 0; // Cached bounding box min Y for base offset calculation
+      let pendingMetadata = {};
+      let pendingOffset = { x: 0, y: 0, z: 0 }; // Position offset for models with off-center pivots
+      const listeners = {
+        treatPlaced: new Set(),
+        treatRemoved: new Set(),
+        treatClicked: new Set(),
+        selectionChanged: new Set(),
+        loadError: new Set(),
+      };
+
+      /**
+       * Generate a unique ID for treats
+       */
+      function generateId() {
+        return 'treat-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      }
+
+      /**
+       * Initialize the GLTFLoader (lazy load from CDN)
+       */
+      async function initLoader() {
+        if (loader) return loader;
+        
+        // Import GLTFLoader from Three.js examples
+        const { GLTFLoader: LoaderClass } = await import(
+          'https://cdn.jsdelivr.net/npm/three@0.178.0/examples/jsm/loaders/GLTFLoader.js'
+        );
+        loader = new LoaderClass();
+        return loader;
+      }
+
+      /**
+       * Load a GLB model from URL
+       * @param {string} url - URL to the GLB file
+       * @returns {Promise<THREE.Group>} The loaded model
+       */
+      async function loadGLB(url) {
+        const gltfLoader = await initLoader();
+        
+        return new Promise((resolve, reject) => {
+          gltfLoader.load(
+            url,
+            (gltf) => {
+              resolve(gltf.scene);
+            },
+            undefined,
+            (error) => {
+              reject(new Error(`Failed to load GLB: ${error.message || 'Unknown error'}`));
+            }
+          );
+        });
+      }
+
+      /**
+       * Orient a mesh to align with a surface normal
+       * @param {THREE.Object3D} mesh - The mesh to orient
+       * @param {Object} normal - Surface normal {x, y, z}
+       */
+      function orientToNormal(mesh, normal) {
+        // Create a quaternion that rotates from up (0,1,0) to the normal
+        const up = new THREE.Vector3(0, 1, 0);
+        const normalVec = new THREE.Vector3(normal.x, normal.y, normal.z).normalize();
+        
+        // Use quaternion for smooth rotation
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromUnitVectors(up, normalVec);
+        mesh.quaternion.copy(quaternion);
+      }
+
+      /**
+       * Notify listeners of an event
+       */
+      function emit(event, data) {
+        if (listeners[event]) {
+          listeners[event].forEach((callback) => {
+            try {
+              callback(data);
+            } catch (error) {
+              console.error(`TreatManager: Error in ${event} callback:`, error);
+            }
+          });
+        }
+      }
+
+      return {
+        /**
+         * Select a treat for placement by loading its GLB
+         * @param {string} glbUrl - URL to the GLB file
+         * @param {string} type - Type of treat ('custom', 'library', 'message-bottle', etc.)
+         * @returns {Promise<void>}
+         */
+        async selectTreat(glbUrl, type = 'custom') {
+          try {
+            // Dispose previous preloaded model
+            if (preloadedModel) {
+              preloadedModel.traverse((child) => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                  if (Array.isArray(child.material)) {
+                    child.material.forEach((m) => m.dispose());
+                  } else {
+                    child.material.dispose();
+                  }
+                }
+              });
+              preloadedModel = null;
+            }
+
+            selectedGlbUrl = glbUrl;
+            selectedType = type;
+            
+            // Preload the model
+            preloadedModel = await loadGLB(glbUrl);
+            
+            // Cache bounding box min Y for base offset (avoids recalculating on each placement)
+            const boundingBox = new THREE.Box3().setFromObject(preloadedModel);
+            cachedModelMinY = boundingBox.min.y;
+            
+            emit('selectionChanged', { glbUrl, type, ready: true });
+          } catch (error) {
+            selectedGlbUrl = null;
+            selectedType = 'custom';
+            preloadedModel = null;
+            emit('loadError', { glbUrl, error: error.message });
+            throw error;
+          }
+        },
+
+        /**
+         * Set metadata to attach to the next placed treat
+         * @param {Object} metadata - Metadata object { text?, behaviorCode?, objectId? }
+         */
+        setMetadata(metadata) {
+          pendingMetadata = { ...metadata };
+          // Enforce text length limit
+          if (pendingMetadata.text && pendingMetadata.text.length > 280) {
+            pendingMetadata.text = pendingMetadata.text.substring(0, 280);
+          }
+        },
+
+        /**
+         * Set position offset for the next placed treat.
+         * Useful for models with off-center pivots (e.g., message in a bottle).
+         * @param {Object} offset - Offset {x, y, z} to apply after placement
+         */
+        setOffset(offset) {
+          pendingOffset = { 
+            x: offset.x || 0, 
+            y: offset.y || 0, 
+            z: offset.z || 0 
+          };
+        },
+
+        /**
+         * Get the current offset
+         * @returns {Object} Current offset {x, y, z}
+         */
+        getOffset() {
+          return { ...pendingOffset };
+        },
+
+        /**
+         * Place the selected treat at a raycast hit position
+         * @param {Object} hit - RaycastHit { position, normal, distance }
+         * @param {Object} metadata - Optional metadata to override pending metadata
+         * @returns {Object|null} The placed treat or null if no treat selected
+         */
+        placeTreat(hit, metadata = null) {
+          if (!selectedGlbUrl || !preloadedModel) {
+            console.warn('TreatManager: No treat selected for placement');
+            return null;
+          }
+
+          // Clone the preloaded model
+          const mesh = preloadedModel.clone();
+          
+          // Use cached bounding box min Y (computed once in selectTreat)
+          // The base offset moves the model up so its bottom sits at origin
+          const baseOffset = -cachedModelMinY;
+          
+          // First orient to surface normal
+          orientToNormal(mesh, hit.normal);
+          
+          // Now offset along the surface normal direction (which is the model's new "up")
+          // This ensures the base sits on the surface regardless of surface angle
+          const normalVec = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
+          const offsetAlongNormal = normalVec.multiplyScalar(baseOffset);
+          
+          // Position at hit point with base offset along normal and user offset applied
+          const finalPos = {
+            x: hit.position.x + pendingOffset.x + offsetAlongNormal.x,
+            y: hit.position.y + pendingOffset.y + offsetAlongNormal.y,
+            z: hit.position.z + pendingOffset.z + offsetAlongNormal.z,
+          };
+          mesh.position.set(finalPos.x, finalPos.y, finalPos.z);
+          
+          // Set render order so GLB renders after splat mesh for proper occlusion
+          mesh.renderOrder = 1;
+          mesh.traverse((child) => {
+            if (child.isMesh) {
+              child.renderOrder = 1;
+            }
+          });
+          
+          // Add to scene
+          scene.add(mesh);
+
+          // Create treat data
+          const treatId = generateId();
+          const treatMetadata = metadata || { ...pendingMetadata };
+          
+          // Enforce text length constraint
+          if (treatMetadata.text && treatMetadata.text.length > 280) {
+            treatMetadata.text = treatMetadata.text.substring(0, 280);
+          }
+
+          const treat = {
+            id: treatId,
+            type: selectedType,
+            glbUrl: selectedGlbUrl,
+            position: { x: finalPos.x, y: finalPos.y, z: finalPos.z },
+            rotation: { 
+              x: mesh.rotation.x, 
+              y: mesh.rotation.y, 
+              z: mesh.rotation.z,
+              order: mesh.rotation.order,
+            },
+            scale: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
+            metadata: treatMetadata,
+            offset: { ...pendingOffset }, // Store the offset used
+          };
+
+          // Store treat and mesh reference
+          treats.set(treatId, { treat, mesh });
+          
+          // Make mesh clickable by storing treat ID
+          mesh.userData.treatId = treatId;
+          mesh.userData.isTreat = true;
+
+          emit('treatPlaced', treat);
+          return treat;
+        },
+
+        /**
+         * Remove a placed treat
+         * @param {string} treatId - ID of the treat to remove
+         * @returns {boolean} True if treat was removed
+         */
+        removeTreat(treatId) {
+          const entry = treats.get(treatId);
+          if (!entry) return false;
+
+          // Remove mesh from scene
+          scene.remove(entry.mesh);
+          
+          // Dispose resources
+          entry.mesh.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          });
+
+          treats.delete(treatId);
+          emit('treatRemoved', entry.treat);
+          return true;
+        },
+
+        /**
+         * Get a treat by ID
+         * @param {string} treatId - ID of the treat
+         * @returns {Object|null} The treat or null
+         */
+        getTreat(treatId) {
+          const entry = treats.get(treatId);
+          return entry ? entry.treat : null;
+        },
+
+        /**
+         * Get all placed treats
+         * @returns {Array} Array of all treats
+         */
+        getAllTreats() {
+          return Array.from(treats.values()).map((entry) => entry.treat);
+        },
+
+        /**
+         * Get the mesh for a treat (for raycasting)
+         * @param {string} treatId - ID of the treat
+         * @returns {THREE.Object3D|null} The mesh or null
+         */
+        getMesh(treatId) {
+          const entry = treats.get(treatId);
+          return entry ? entry.mesh : null;
+        },
+
+        /**
+         * Get all treat meshes (for raycasting)
+         * @returns {Array<THREE.Object3D>} Array of all treat meshes
+         */
+        getAllMeshes() {
+          return Array.from(treats.values()).map((entry) => entry.mesh);
+        },
+
+        /**
+         * Handle treat click interaction
+         * @param {string} treatId - ID of the clicked treat
+         */
+        onTreatClick(treatId) {
+          const treat = this.getTreat(treatId);
+          if (treat) {
+            emit('treatClicked', treat);
+          }
+        },
+
+        /**
+         * Check if a treat is currently selected for placement
+         * @returns {boolean}
+         */
+        hasSelection() {
+          return selectedGlbUrl !== null && preloadedModel !== null;
+        },
+
+        /**
+         * Get the currently selected treat info
+         * @returns {Object|null} { glbUrl, type } or null
+         */
+        getSelection() {
+          if (!selectedGlbUrl) return null;
+          return { glbUrl: selectedGlbUrl, type: selectedType };
+        },
+
+        /**
+         * Clear the current selection
+         */
+        clearSelection() {
+          if (preloadedModel) {
+            preloadedModel.traverse((child) => {
+              if (child.geometry) child.geometry.dispose();
+              if (child.material) {
+                if (Array.isArray(child.material)) {
+                  child.material.forEach((m) => m.dispose());
+                } else {
+                  child.material.dispose();
+                }
+              }
+            });
+            preloadedModel = null;
+          }
+          selectedGlbUrl = null;
+          selectedType = 'custom';
+          cachedModelMinY = 0;
+          pendingMetadata = {};
+          emit('selectionChanged', { glbUrl: null, type: null, ready: false });
+        },
+
+        /**
+         * Subscribe to events
+         * @param {string} event - Event name ('treatPlaced', 'treatRemoved', 'treatClicked', 'selectionChanged', 'loadError')
+         * @param {Function} callback - Callback function
+         * @returns {Function} Unsubscribe function
+         */
+        on(event, callback) {
+          if (listeners[event]) {
+            listeners[event].add(callback);
+            return () => listeners[event].delete(callback);
+          }
+          return () => {};
+        },
+
+        /**
+         * Dispose all resources
+         */
+        dispose() {
+          // Remove all treats
+          for (const [id] of treats) {
+            this.removeTreat(id);
+          }
+          
+          // Clear preloaded model
+          this.clearSelection();
+          
+          // Clear listeners
+          Object.values(listeners).forEach((set) => set.clear());
+        },
+      };
+    }
+
+    // ============================================
+    // ModeManager - Edit/Explore mode management
+    // ============================================
+    
+    /**
+     * Creates a ModeManager for switching between Edit and Explore modes.
+     * Defaults to 'explore' mode on load.
+     * Emits events on mode change for UI updates.
+     */
+    function createModeManager() {
+      let currentMode = 'explore';
+      const listeners = new Set();
+
+      function notifyListeners() {
+        listeners.forEach((callback) => {
+          try {
+            callback(currentMode);
+          } catch (error) {
+            console.error('ModeManager: Error in mode change callback:', error);
+          }
+        });
+      }
+
+      return {
+        getMode() { return currentMode; },
+        setMode(mode) {
+          if (mode !== currentMode) {
+            currentMode = mode;
+            notifyListeners();
+          }
+        },
+        toggle() {
+          currentMode = currentMode === 'explore' ? 'edit' : 'explore';
+          notifyListeners();
+        },
+        onModeChange(callback) {
+          listeners.add(callback);
+          return () => listeners.delete(callback);
+        },
+        isEditMode() { return currentMode === 'edit'; },
+        isExploreMode() { return currentMode === 'explore'; },
+      };
+    }
+
+    // Initialize ModeManager
+    const modeManager = createModeManager();
+
+    // Configuration - easy to tweak
+    const CONFIG = {
+      moveSpeed: 3,
+      lookSensitivity: 0.002,
+      mobileLookSensitivity: 0.003,
+      maxPitch: Math.PI / 2,
+      defaultFov: 75,
+      cameraHeight: 1.6,
+      cameraDistance: 5,
+      joystickMaxDist: 35,
+      loadTimeout: 30000, // 30s for large SPZ files
+    };
+
+    // Get world from URL params
+    const params = new URLSearchParams(window.location.search);
+    const spzUrl = params.get('url') || 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bonsai/bonsai-7k-mini.spz';
+    const worldName = params.get('name') || 'Splat World';
+    const isAdminMode = params.get('admin') === 'true';
+    
+    document.getElementById('world-name').textContent = worldName;
+
+    // Setup Three.js
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+    
+    const camera = new THREE.PerspectiveCamera(CONFIG.defaultFov, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, CONFIG.cameraHeight, CONFIG.cameraDistance);
+    
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: false,
+      logarithmicDepthBuffer: true, // Better depth precision for splat + GLB mixing
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 10, 5);
+    scene.add(dirLight);
+
+    // Progress tracking UI elements
+    const loadingEl = document.getElementById('loading');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const loadingStatus = document.getElementById('loading-status');
+    let loadHandled = false;
+    
+    const hideLoading = () => {
+      if (loadHandled) return;
+      loadHandled = true;
+      progressBar.style.width = '100%';
+      progressText.textContent = '100%';
+      loadingStatus.textContent = 'Ready!';
+      setTimeout(() => loadingEl.classList.add('hidden'), 200);
+    };
+    
+    const showError = (message) => {
+      if (loadHandled) return;
+      loadHandled = true;
+      loadingEl.innerHTML = `
+        <p style="color: #ff6600;">${message}</p>
+        <button onclick="window.location.href='/'" style="margin-top:1rem;padding:0.5rem 1rem;background:#8a2be2;color:white;border:none;border-radius:0.5rem;cursor:pointer;">
+          Back to Worlds
+        </button>
+      `;
+    };
+
+    // Placeholders for systems initialized after splat loads
+    let splatMesh = null;
+    let raycastSystem = null;
+    let treatManager = null;
+    let ghostPreview = null;
+    
+    // Load splat with progress tracking using SplatLoader
+    const splatLoader = new SplatLoader();
+    
+    splatLoader.load(
+      spzUrl,
+      // onLoad - called when PackedSplats is ready
+      (packedSplats) => {
+        loadingStatus.textContent = 'Building mesh...';
+        progressBar.style.width = '95%';
+        progressText.textContent = '95%';
+        
+        // Create SplatMesh from loaded data
+        splatMesh = new SplatMesh({ packedSplats });
+        splatMesh.rotation.x = Math.PI; // Flip - SPZ files are often upside down
+        splatMesh.renderOrder = 0;
+        
+        // Apply Deep Meditation shader effect during load-in
+        applyLoadInEffect(splatMesh);
+        
+        scene.add(splatMesh);
+        
+        // Initialize systems that depend on splatMesh
+        raycastSystem = createRaycastSystem(camera, splatMesh);
+        treatManager = createTreatManager(scene);
+        ghostPreview = createGhostPreview(scene);
+        
+        // Setup event listeners now that treatManager exists
+        setupTreatEventListeners();
+        
+        hideLoading();
+      },
+      // onProgress - called during download/decode
+      (event) => {
+        if (loadHandled) return;
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.round((event.loaded / event.total) * 90); // Reserve 10% for mesh building
+          progressBar.style.width = `${percent}%`;
+          progressText.textContent = `${percent}%`;
+          
+          if (percent < 30) {
+            loadingStatus.textContent = 'Downloading...';
+          } else if (percent < 70) {
+            loadingStatus.textContent = 'Decoding splats...';
+          } else {
+            loadingStatus.textContent = 'Processing...';
+          }
+        }
+      },
+      // onError
+      (error) => {
+        console.error('Splat load failed:', error);
+        showError('Failed to load world');
+      }
+    );
+    
+    // Fallback timeout for very large files
+    setTimeout(() => {
+      if (!loadHandled && !splatMesh) {
+        showError('Loading timed out - file may be too large');
+      }
+    }, CONFIG.loadTimeout);
+
+    // ============================================
+    // Admin Camera Calibration (only when ?admin=true)
+    // ============================================
+    const adminPanel = document.getElementById('admin-panel');
+    const adminToast = document.getElementById('admin-toast');
+    let pitch = 0; // Track pitch for admin display
+    let yaw = 0;   // Track yaw for admin display
+
+    if (isAdminMode) {
+      adminPanel.classList.add('visible');
+      console.log('🎯 Admin mode enabled - Camera calibration active');
+
+      const adminPosEl = document.getElementById('admin-pos');
+      const adminRotEl = document.getElementById('admin-rot');
+      const adminDirEl = document.getElementById('admin-dir');
+
+      // Show toast notification
+      function showAdminToast(message) {
+        adminToast.textContent = message;
+        adminToast.classList.add('visible');
+        setTimeout(() => adminToast.classList.remove('visible'), 1500);
+      }
+
+      // Format number to 2 decimal places
+      const fmt = (n) => n.toFixed(2);
+
+      // Update admin panel with current camera state
+      function updateAdminPanel() {
+        const pos = camera.position;
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        
+        adminPosEl.textContent = `${fmt(pos.x)}, ${fmt(pos.y)}, ${fmt(pos.z)}`;
+        adminRotEl.textContent = `${fmt(pitch)}, ${fmt(yaw)}`;
+        adminDirEl.textContent = `${fmt(dir.x)}, ${fmt(dir.y)}, ${fmt(dir.z)}`;
+      }
+
+      // Get config object for export
+      function getConfigObject() {
+        const pos = camera.position;
+        return {
+          initialCamera: {
+            position: { x: parseFloat(fmt(pos.x)), y: parseFloat(fmt(pos.y)), z: parseFloat(fmt(pos.z)) },
+            pitch: parseFloat(fmt(pitch)),
+            yaw: parseFloat(fmt(yaw)),
+          },
+        };
+      }
+
+      // Copy to clipboard helper
+      async function copyToClipboard(text, message) {
+        try {
+          await navigator.clipboard.writeText(text);
+          showAdminToast(message);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+          showAdminToast('Copy failed!');
+        }
+      }
+
+      // Copy position button
+      document.getElementById('copy-pos').addEventListener('click', () => {
+        const pos = camera.position;
+        copyToClipboard(`{ x: ${fmt(pos.x)}, y: ${fmt(pos.y)}, z: ${fmt(pos.z)} }`, 'Position copied!');
+      });
+
+      // Copy rotation button
+      document.getElementById('copy-rot').addEventListener('click', () => {
+        copyToClipboard(`{ pitch: ${fmt(pitch)}, yaw: ${fmt(yaw)} }`, 'Rotation copied!');
+      });
+
+      // Copy direction button
+      document.getElementById('copy-dir').addEventListener('click', () => {
+        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        copyToClipboard(`{ x: ${fmt(dir.x)}, y: ${fmt(dir.y)}, z: ${fmt(dir.z)} }`, 'Direction copied!');
+      });
+
+      // Export full config button
+      document.getElementById('export-config').addEventListener('click', () => {
+        const config = getConfigObject();
+        copyToClipboard(JSON.stringify(config, null, 2), 'Config copied!');
+      });
+
+      // Keyboard shortcuts for admin
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        if (e.key === 'c' || e.key === 'C') {
+          const pos = camera.position;
+          copyToClipboard(`{ x: ${fmt(pos.x)}, y: ${fmt(pos.y)}, z: ${fmt(pos.z)} }`, 'Position copied!');
+        } else if (e.key === 'v' || e.key === 'V') {
+          const config = getConfigObject();
+          copyToClipboard(JSON.stringify(config, null, 2), 'Config copied!');
+        } else if (e.key === 'r' || e.key === 'R') {
+          camera.position.set(0, CONFIG.cameraHeight, CONFIG.cameraDistance);
+          pitch = 0;
+          yaw = 0;
+          camera.rotation.set(0, 0, 0);
+          showAdminToast('Reset to origin!');
+        }
+      });
+
+      // Update panel on animation frame
+      window.adminUpdatePanel = updateAdminPanel;
+    }
+    // Resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Detect mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+    
+    // Setup UI for mobile/desktop
+    const infoEl = document.getElementById('info');
+    const controlsHint = document.getElementById('controls-hint');
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickStick = document.getElementById('joystick-stick');
+    
+    if (isMobile) {
+      infoEl.classList.add('mobile');
+      controlsHint.textContent = 'Drag right side to look • Use joystick to move';
+      joystickZone.classList.add('visible');
+    }
+
+    // ============================================
+    // Mode Toggle UI
+    // ============================================
+    
+    const modeToggleBtn = document.getElementById('mode-toggle');
+    const modeLabelEl = document.getElementById('mode-label');
+    const modeBadgeEl = document.getElementById('mode-badge');
+
+    // Update UI when mode changes
+    modeManager.onModeChange((mode) => {
+      const isEdit = mode === 'edit';
+      
+      // Update toggle button
+      modeToggleBtn.dataset.mode = mode;
+      modeLabelEl.textContent = isEdit ? 'Edit' : 'Explore';
+      modeToggleBtn.querySelector('.icon').textContent = isEdit ? '✏️' : '👁️';
+      
+      // Show mode badge briefly
+      modeBadgeEl.textContent = isEdit ? 'Edit Mode' : 'Explore Mode';
+      modeBadgeEl.classList.add('visible');
+      setTimeout(() => modeBadgeEl.classList.remove('visible'), 1500);
+      
+      // Update controls hint
+      if (isEdit) {
+        controlsHint.textContent = isMobile 
+          ? 'Tap to place • Drag to look • Joystick to move'
+          : 'Click to place • ESC to look • WASD to move';
+      } else {
+        controlsHint.textContent = isMobile
+          ? 'Drag right side to look • Use joystick to move'
+          : 'Click to look • WASD to move';
+      }
+    });
+
+    // Toggle mode on button click
+    modeToggleBtn.addEventListener('click', () => {
+      modeManager.toggle();
+    });
+
+    // Keyboard shortcut: Tab to toggle mode
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        modeManager.toggle();
+      }
+    });
+
+    // ============================================
+    // Treat Panel UI
+    // ============================================
+    
+    const treatPanelEl = document.getElementById('treat-panel');
+    const treatStatusEl = document.getElementById('treat-status');
+    const glbUrlInput = document.getElementById('glb-url');
+    const treatTextInput = document.getElementById('treat-text');
+    const charCountEl = document.getElementById('char-count');
+    const loadTreatBtn = document.getElementById('load-treat-btn');
+    const presetBottleBtn = document.getElementById('preset-bottle');
+    const placedTreatsSection = document.getElementById('placed-treats-section');
+    const placedTreatsList = document.getElementById('placed-treats-list');
+    const messageModal = document.getElementById('message-modal');
+    const messageContent = document.getElementById('message-content');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const offsetXInput = document.getElementById('offset-x');
+    const offsetYInput = document.getElementById('offset-y');
+    const offsetZInput = document.getElementById('offset-z');
+
+    // Update offset when inputs change
+    function updateOffset() {
+      if (!treatManager) return;
+      treatManager.setOffset({
+        x: parseFloat(offsetXInput.value) || 0,
+        y: parseFloat(offsetYInput.value) || 0,
+        z: parseFloat(offsetZInput.value) || 0,
+      });
+    }
+    offsetXInput.addEventListener('input', updateOffset);
+    offsetYInput.addEventListener('input', updateOffset);
+    offsetZInput.addEventListener('input', updateOffset);
+
+    // Show/hide treat panel based on mode
+    modeManager.onModeChange((mode) => {
+      if (mode === 'edit') {
+        treatPanelEl.classList.add('visible');
+      } else {
+        treatPanelEl.classList.remove('visible');
+      }
+    });
+
+    // Character count for text input
+    treatTextInput.addEventListener('input', () => {
+      const len = treatTextInput.value.length;
+      charCountEl.textContent = `${len} / 280`;
+      charCountEl.classList.remove('warning', 'error');
+      if (len > 250) charCountEl.classList.add('warning');
+      if (len >= 280) charCountEl.classList.add('error');
+      
+      // Update pending metadata
+      if (treatManager) treatManager.setMetadata({ text: treatTextInput.value || undefined });
+    });
+
+    // Status display helper
+    function showStatus(message, type = 'ready') {
+      treatStatusEl.textContent = message;
+      treatStatusEl.className = `status ${type}`;
+      treatStatusEl.style.display = 'block';
+    }
+
+    function hideStatus() {
+      treatStatusEl.style.display = 'none';
+    }
+
+    // Preset button click
+    presetBottleBtn.addEventListener('click', async () => {
+      if (!treatManager) {
+        showStatus('World still loading...', 'loading');
+        return;
+      }
+      const url = presetBottleBtn.dataset.url;
+      glbUrlInput.value = url;
+      
+      // Clear other preset selections
+      document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+      presetBottleBtn.classList.add('selected');
+      
+      // Set default offset for Message in a Bottle (adjust Y to lift it above surface)
+      offsetXInput.value = '0';
+      offsetYInput.value = '0.1'; // Lift slightly above surface
+      offsetZInput.value = '0';
+      updateOffset();
+      
+      showStatus('Loading Message in a Bottle...', 'loading');
+      
+      try {
+        await treatManager.selectTreat(url, 'message-bottle');
+        // Load ghost preview for the selected treat
+        if (ghostPreview) {
+          await ghostPreview.load(url);
+          ghostPreview.show();
+          enterPlacementMode();
+        }
+        showStatus('✓ Ready to place! Move cursor to preview.', 'ready');
+      } catch (error) {
+        showStatus(`✗ ${error.message}`, 'error');
+      }
+    });
+
+    // Load custom GLB button
+    loadTreatBtn.addEventListener('click', async () => {
+      if (!treatManager) {
+        showStatus('World still loading...', 'loading');
+        return;
+      }
+      const url = glbUrlInput.value.trim();
+      if (!url) {
+        showStatus('Please enter a GLB URL', 'error');
+        return;
+      }
+
+      // Clear preset selections
+      document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+      
+      showStatus('Loading GLB...', 'loading');
+      loadTreatBtn.disabled = true;
+      
+      try {
+        await treatManager.selectTreat(url, 'custom');
+        // Load ghost preview for the selected treat
+        if (ghostPreview) {
+          await ghostPreview.load(url);
+          ghostPreview.show();
+          enterPlacementMode();
+        }
+        showStatus('✓ Ready to place! Move cursor to preview.', 'ready');
+      } catch (error) {
+        showStatus(`✗ ${error.message}`, 'error');
+      } finally {
+        loadTreatBtn.disabled = false;
+      }
+    });
+
+    // Update placed treats list
+    function updatePlacedTreatsList() {
+      if (!treatManager) {
+        placedTreatsSection.style.display = 'none';
+        return;
+      }
+      const treats = treatManager.getAllTreats();
+      
+      if (treats.length === 0) {
+        placedTreatsSection.style.display = 'none';
+        return;
+      }
+      
+      placedTreatsSection.style.display = 'block';
+      placedTreatsList.innerHTML = treats.map((treat) => {
+        const name = treat.type === 'message-bottle' ? '🍾 Message Bottle' : 
+                     treat.glbUrl.split('/').pop().substring(0, 20);
+        const hasText = treat.metadata.text ? ' 📜' : '';
+        return `
+          <div class="treat-item" data-id="${treat.id}">
+            <span class="treat-name">${name}${hasText}</span>
+            <button class="delete-btn" data-id="${treat.id}">✕</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Handle delete button clicks in placed treats list
+    placedTreatsList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-btn')) {
+        const treatId = e.target.dataset.id;
+        if (treatManager) treatManager.removeTreat(treatId);
+        updatePlacedTreatsList();
+      }
+    });
+
+    // Setup treat event listeners (called after treatManager is initialized)
+    function setupTreatEventListeners() {
+      if (!treatManager) return;
+      
+      treatManager.on('treatPlaced', (treat) => {
+        console.log('Treat placed:', treat);
+        updatePlacedTreatsList();
+      });
+
+      treatManager.on('treatRemoved', (treat) => {
+        console.log('Treat removed:', treat);
+        updatePlacedTreatsList();
+      });
+      
+      treatManager.on('treatClicked', (treat) => {
+        console.log('Treat clicked:', treat);
+        if (treat.metadata && treat.metadata.text) {
+          showMessageModal(treat.metadata.text);
+        }
+      });
+    }
+
+    // ============================================
+    // Treat Click Interaction (Message Display)
+    // ============================================
+    
+    // Raycaster for treat clicking
+    const treatRaycaster = new THREE.Raycaster();
+    const treatScreenCoords = new THREE.Vector2();
+
+    function raycastTreats(clientX, clientY) {
+      if (!treatManager) return null;
+      
+      const rect = renderer.domElement.getBoundingClientRect();
+      treatScreenCoords.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      treatScreenCoords.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      
+      treatRaycaster.setFromCamera(treatScreenCoords, camera);
+      
+      const meshes = treatManager.getAllMeshes();
+      if (meshes.length === 0) return null;
+      
+      const intersections = treatRaycaster.intersectObjects(meshes, true);
+      
+      if (intersections.length > 0) {
+        // Find the treat ID from the intersected object or its parents
+        let obj = intersections[0].object;
+        while (obj) {
+          if (obj.userData && obj.userData.treatId) {
+            return obj.userData.treatId;
+          }
+          obj = obj.parent;
+        }
+      }
+      return null;
+    }
+
+    // Show message modal
+    function showMessageModal(text) {
+      messageContent.textContent = text;
+      messageModal.classList.add('visible');
+    }
+
+    // Close message modal
+    closeModalBtn.addEventListener('click', () => {
+      messageModal.classList.remove('visible');
+    });
+
+    messageModal.addEventListener('click', (e) => {
+      if (e.target === messageModal) {
+        messageModal.classList.remove('visible');
+      }
+    });
+
+    // FPS Controls
+    const moveState = { forward: false, backward: false, left: false, right: false };
+    const joystickInput = { x: 0, y: 0 };
+    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    let isLocked = false;
+
+    // Key mapping for cleaner event handling
+    const keyMap = {
+      KeyW: 'forward', ArrowUp: 'forward',
+      KeyS: 'backward', ArrowDown: 'backward',
+      KeyA: 'left', ArrowLeft: 'left',
+      KeyD: 'right', ArrowRight: 'right',
+    };
+
+    // Desktop keyboard controls
+    document.addEventListener('keydown', (e) => {
+      if (keyMap[e.code]) moveState[keyMap[e.code]] = true;
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (keyMap[e.code]) moveState[keyMap[e.code]] = false;
+    });
+
+    // Visual feedback for raycast hits (temporary marker)
+    let hitMarker = null;
+    
+    function createHitMarker() {
+      const geometry = new THREE.SphereGeometry(0.05, 16, 16);
+      const material = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+      const marker = new THREE.Mesh(geometry, material);
+      marker.visible = false;
+      scene.add(marker);
+      return marker;
+    }
+    
+    function showHitMarker(hit) {
+      if (!hitMarker) hitMarker = createHitMarker();
+      hitMarker.position.set(hit.position.x, hit.position.y, hit.position.z);
+      hitMarker.visible = true;
+      // Hide after 1 second
+      setTimeout(() => { if (hitMarker) hitMarker.visible = false; }, 1000);
+    }
+    
+    function showMissIndicator() {
+      // Flash the treat panel border red briefly to indicate no valid surface
+      const panel = document.getElementById('treat-panel');
+      if (panel) {
+        panel.style.borderColor = 'rgba(255, 0, 0, 0.8)';
+        setTimeout(() => {
+          panel.style.borderColor = 'rgba(138, 43, 226, 0.5)';
+        }, 300);
+      }
+    }
+
+    // ============================================
+    // Surface Indicator Ring (shows where treat will be placed)
+    // ============================================
+    let surfaceRing = null;
+    
+    function createSurfaceRing() {
+      const geometry = new THREE.RingGeometry(0.08, 0.12, 32);
+      const material = new THREE.MeshBasicMaterial({ 
+        color: 0xff6600, 
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(geometry, material);
+      ring.visible = false;
+      ring.renderOrder = 2; // Render on top
+      scene.add(ring);
+      return ring;
+    }
+    
+    function updateSurfaceRing(hit) {
+      if (!surfaceRing) surfaceRing = createSurfaceRing();
+      
+      // Position at hit point
+      surfaceRing.position.set(hit.position.x, hit.position.y, hit.position.z);
+      
+      // Orient to face along surface normal
+      const normal = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z);
+      surfaceRing.lookAt(
+        hit.position.x + normal.x,
+        hit.position.y + normal.y,
+        hit.position.z + normal.z
+      );
+      
+      // Offset slightly along normal to prevent z-fighting
+      surfaceRing.position.addScaledVector(normal, 0.01);
+      
+      surfaceRing.visible = true;
+    }
+    
+    function hideSurfaceRing() {
+      if (surfaceRing) surfaceRing.visible = false;
+    }
+
+    // ============================================
+    // Placement Mode Management
+    // ============================================
+    let isInPlacementMode = false;
+    let lastValidHit = null;
+    
+    function enterPlacementMode() {
+      isInPlacementMode = true;
+      // Change cursor to crosshair (Requirement 6.1)
+      renderer.domElement.style.cursor = 'crosshair';
+    }
+    
+    function exitPlacementMode() {
+      isInPlacementMode = false;
+      renderer.domElement.style.cursor = 'default';
+      if (ghostPreview) ghostPreview.hide();
+      hideSurfaceRing();
+      lastValidHit = null;
+    }
+    
+    // Update ghost preview position on mouse move (Requirements 1.1, 1.2)
+    renderer.domElement.addEventListener('mousemove', (e) => {
+      if (!isInPlacementMode || !ghostPreview || !raycastSystem || isLocked) return;
+      
+      const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
+      
+      if (hit) {
+        // Valid surface hit - show ghost at position (Requirement 1.2)
+        const offset = treatManager ? treatManager.getOffset() : { x: 0, y: 0, z: 0 };
+        ghostPreview.setPosition(hit, offset);
+        ghostPreview.setValid(true);
+        ghostPreview.show();
+        updateSurfaceRing(hit);
+        lastValidHit = hit;
+      } else {
+        // No valid surface - show invalid state (Requirement 1.3)
+        ghostPreview.setValid(false);
+        hideSurfaceRing();
+        lastValidHit = null;
+      }
+    });
+    
+    // Touch move for mobile ghost preview
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (!isInPlacementMode || !ghostPreview || !raycastSystem) return;
+      if (e.touches.length !== 1) return; // Only single touch for positioning
+      
+      const touch = e.touches[0];
+      const hit = raycastSystem.raycastFromEvent(touch.clientX, touch.clientY, renderer.domElement);
+      
+      if (hit) {
+        const offset = treatManager ? treatManager.getOffset() : { x: 0, y: 0, z: 0 };
+        ghostPreview.setPosition(hit, offset);
+        ghostPreview.setValid(true);
+        ghostPreview.show();
+        updateSurfaceRing(hit);
+        lastValidHit = hit;
+      } else {
+        ghostPreview.setValid(false);
+        hideSurfaceRing();
+        lastValidHit = null;
+      }
+    }, { passive: true });
+    
+    // Escape key to cancel placement mode (Requirement 2.4)
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && isInPlacementMode) {
+        exitPlacementMode();
+        if (treatManager) treatManager.clearSelection();
+        showStatus('Placement cancelled', 'ready');
+        setTimeout(hideStatus, 1500);
+      }
+    });
+
+    // Desktop pointer lock for mouse look (only in explore mode)
+    renderer.domElement.addEventListener('click', (e) => {
+      if (isMobile) return;
+      
+      if (modeManager.isEditMode()) {
+        // First, check if we clicked on a placed treat
+        const clickedTreatId = raycastTreats(e.clientX, e.clientY);
+        if (clickedTreatId) {
+          treatManager.onTreatClick(clickedTreatId);
+          return;
+        }
+        
+        // If a treat is selected, try to place it
+        if (!raycastSystem || !treatManager) return; // Not loaded yet
+        if (treatManager.hasSelection()) {
+          const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
+          
+          if (hit) {
+            console.log('Raycast hit:', hit);
+            const placedTreat = treatManager.placeTreat(hit);
+            if (placedTreat) {
+              showHitMarker(hit);
+              window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
+            }
+          } else {
+            console.log('Raycast miss - no valid surface');
+            showMissIndicator();
+            window.dispatchEvent(new CustomEvent('raycast-miss'));
+          }
+        } else {
+          // No treat selected, just show hit marker for feedback
+          const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
+          if (hit) {
+            showHitMarker(hit);
+            showStatus('Select a treat first!', 'error');
+            setTimeout(hideStatus, 2000);
+          }
+        }
+        return;
+      }
+      
+      // In explore mode, check for treat clicks first
+      const clickedTreatId = raycastTreats(e.clientX, e.clientY);
+      if (clickedTreatId && treatManager) {
+        treatManager.onTreatClick(clickedTreatId);
+        return;
+      }
+      
+      // Otherwise, request pointer lock for mouse look
+      renderer.domElement.requestPointerLock();
+    });
+    
+    document.addEventListener('pointerlockchange', () => {
+      isLocked = document.pointerLockElement === renderer.domElement;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isLocked) return;
+      euler.setFromQuaternion(camera.quaternion);
+      euler.y -= e.movementX * CONFIG.lookSensitivity;
+      euler.x -= e.movementY * CONFIG.lookSensitivity;
+      euler.x = Math.max(-CONFIG.maxPitch, Math.min(CONFIG.maxPitch, euler.x));
+      camera.quaternion.setFromEuler(euler);
+      // Update admin tracking
+      if (isAdminMode) {
+        pitch = euler.x;
+        yaw = euler.y;
+      }
+    });
+
+    // Helper to find touch by identifier
+    function findTouchById(touches, id) {
+      for (const touch of touches) {
+        if (touch.identifier === id) return touch;
+      }
+      return null;
+    }
+
+    // Mobile joystick
+    let joystickTouchId = null;
+    const joystickCenter = { x: 60, y: 60 }; // center of 120px zone
+
+    joystickZone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const touch = e.changedTouches[0];
+      joystickTouchId = touch.identifier;
+      updateJoystick(touch);
+    }, { passive: false });
+
+    joystickZone.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const touch = findTouchById(e.changedTouches, joystickTouchId);
+      if (touch) updateJoystick(touch);
+    }, { passive: false });
+
+    joystickZone.addEventListener('touchend', (e) => {
+      if (findTouchById(e.changedTouches, joystickTouchId)) {
+        joystickTouchId = null;
+        joystickInput.x = 0;
+        joystickInput.y = 0;
+        joystickStick.style.transform = 'translate(-50%, -50%)';
+      }
+    });
+
+    function updateJoystick(touch) {
+      const rect = joystickZone.getBoundingClientRect();
+      let dx = touch.clientX - rect.left - joystickCenter.x;
+      let dy = touch.clientY - rect.top - joystickCenter.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist > CONFIG.joystickMaxDist) {
+        dx = (dx / dist) * CONFIG.joystickMaxDist;
+        dy = (dy / dist) * CONFIG.joystickMaxDist;
+      }
+      
+      joystickInput.x = dx / CONFIG.joystickMaxDist;
+      joystickInput.y = -dy / CONFIG.joystickMaxDist; // invert Y
+      
+      joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    }
+
+    // Mobile touch look (right side of screen)
+    let lookTouchId = null;
+    let lastLookX = 0, lastLookY = 0;
+    let touchStartTime = 0;
+    let touchStartPos = { x: 0, y: 0 };
+    const TAP_THRESHOLD_MS = 200;
+    const TAP_MOVE_THRESHOLD = 10;
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      for (const touch of e.changedTouches) {
+        // Only use touches on right 70% of screen for look
+        if (touch.clientX > window.innerWidth * 0.3 && lookTouchId === null) {
+          lookTouchId = touch.identifier;
+          lastLookX = touch.clientX;
+          lastLookY = touch.clientY;
+          touchStartTime = Date.now();
+          touchStartPos = { x: touch.clientX, y: touch.clientY };
+          break;
+        }
+      }
+    });
+
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      const touch = findTouchById(e.changedTouches, lookTouchId);
+      if (!touch) return;
+      
+      const dx = touch.clientX - lastLookX;
+      const dy = touch.clientY - lastLookY;
+      lastLookX = touch.clientX;
+      lastLookY = touch.clientY;
+      
+      euler.setFromQuaternion(camera.quaternion);
+      euler.y -= dx * CONFIG.mobileLookSensitivity;
+      euler.x -= dy * CONFIG.mobileLookSensitivity;
+      euler.x = Math.max(-CONFIG.maxPitch, Math.min(CONFIG.maxPitch, euler.x));
+      camera.quaternion.setFromEuler(euler);
+      // Update admin tracking
+      if (isAdminMode) {
+        pitch = euler.x;
+        yaw = euler.y;
+      }
+    });
+
+    renderer.domElement.addEventListener('touchend', (e) => {
+      const touch = findTouchById(e.changedTouches, lookTouchId);
+      if (touch) {
+        // Check if this was a tap (short duration, minimal movement)
+        const duration = Date.now() - touchStartTime;
+        const dx = touch.clientX - touchStartPos.x;
+        const dy = touch.clientY - touchStartPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (duration < TAP_THRESHOLD_MS && distance < TAP_MOVE_THRESHOLD) {
+          // This was a tap - check for treat clicks first
+          if (!raycastSystem || !treatManager) return; // Not loaded yet
+          const clickedTreatId = raycastTreats(touch.clientX, touch.clientY);
+          if (clickedTreatId) {
+            treatManager.onTreatClick(clickedTreatId);
+          } else if (modeManager.isEditMode()) {
+            // In edit mode, try to place a treat
+            if (treatManager.hasSelection()) {
+              const hit = raycastSystem.raycastFromEvent(touch.clientX, touch.clientY, renderer.domElement);
+              
+              if (hit) {
+                console.log('Mobile raycast hit:', hit);
+                const placedTreat = treatManager.placeTreat(hit);
+                if (placedTreat) {
+                  showHitMarker(hit);
+                  window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
+                }
+              } else {
+                console.log('Mobile raycast miss');
+                showMissIndicator();
+                window.dispatchEvent(new CustomEvent('raycast-miss'));
+              }
+            } else {
+              // No treat selected
+              const hit = raycastSystem.raycastFromEvent(touch.clientX, touch.clientY, renderer.domElement);
+              if (hit) {
+                showHitMarker(hit);
+                showStatus('Select a treat first!', 'error');
+                setTimeout(hideStatus, 2000);
+              }
+            }
+          }
+        }
+        
+        lookTouchId = null;
+      }
+    });
+
+    // Animation loop - reuse direction vector to reduce GC pressure
+    const clock = new THREE.Clock();
+    const direction = new THREE.Vector3();
+    
+    // Track load-in effect animation
+    let loadInStartTime = null;
+    const LOAD_IN_DURATION = 3.0; // seconds for effect to fade out
+    
+    renderer.setAnimationLoop((time) => {
+      const delta = clock.getDelta();
+      const timeSeconds = time / 1000;
+
+      // Update shader animation time
+      animateT.value = timeSeconds;
+      
+      // Update load-in effect progress (fade from effect to normal)
+      if (splatMesh) {
+        if (loadInStartTime === null) {
+          loadInStartTime = timeSeconds;
+        }
+        const elapsed = timeSeconds - loadInStartTime;
+        const progress = Math.min(1.0, elapsed / LOAD_IN_DURATION);
+        loadInProgress.value = progress;
+        
+        // Update the mesh to apply shader changes
+        splatMesh.updateVersion();
+      }
+
+      // Movement from keyboard
+      direction.set(0, 0, 0);
+      if (moveState.forward) direction.z -= 1;
+      if (moveState.backward) direction.z += 1;
+      if (moveState.left) direction.x -= 1;
+      if (moveState.right) direction.x += 1;
+      
+      // Add joystick input
+      direction.x += joystickInput.x;
+      direction.z -= joystickInput.y;
+      
+      if (direction.lengthSq() > 0) {
+        if (direction.lengthSq() > 1) direction.normalize();
+        direction.applyQuaternion(camera.quaternion);
+        direction.y = 0;
+        direction.normalize();
+        camera.position.addScaledVector(direction, CONFIG.moveSpeed * delta);
+      }
+
+      // Update admin panel if active
+      if (isAdminMode && window.adminUpdatePanel) {
+        window.adminUpdatePanel();
+      }
+
+      // Render
+      renderer.render(scene, camera);
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      ghostPreview?.dispose();
+      treatManager?.dispose();
+      renderer.dispose();
+      splatMesh?.dispose?.();
+    });
+  </script>
+</body>
+</html>
