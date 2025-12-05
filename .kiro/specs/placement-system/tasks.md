@@ -74,38 +74,38 @@
 
 ## Phase 3: Selection and Post-Placement Adjustment
 
-- [-] 5. Create SelectionManager component
-  - [-] 5.1 Implement SelectionManager class
+- [x] 5. Create SelectionManager component
+  - [x] 5.1 Implement SelectionManager class
     - Track selected treat ID
     - Track hovered treat ID
     - Emit events on selection/deselection
     - _Requirements: 3.1, 3.2_
-  - [ ] 5.2 Implement selection visual feedback
+  - [x] 5.2 Implement selection visual feedback
     - Orange outline around selected treat
     - Subtle glow effect
     - _Requirements: 3.2, 6.4_
-  - [ ] 5.3 Implement hover highlighting
+  - [x] 5.3 Implement hover highlighting
     - Light highlight on hover in edit mode
     - _Requirements: 6.3_
-  - [ ] 5.4 Wire up click-to-select in edit mode
+  - [x] 5.4 Wire up click-to-select in edit mode
     - Click on placed treat selects it for adjustment
     - Click elsewhere deselects
     - Escape deselects
     - _Requirements: 3.1, 3.6_
 
-- [ ] 6. Implement drag-to-reposition
-  - [ ] 6.1 Add drag detection for selected treats
+- [x] 6. Implement drag-to-reposition
+  - [x] 6.1 Add drag detection for selected treats
     - Mousedown on selected treat starts drag
     - Track drag state
     - _Requirements: 3.3_
-  - [ ] 6.2 Update treat position during drag
+  - [x] 6.2 Update treat position during drag
     - Follow cursor raycast hit in real-time
     - Maintain surface normal alignment
     - _Requirements: 3.3, 3.4_
   - [ ]* 6.3 Write property test for drag position
     - **Property 7: Drag updates treat position to raycast hit**
     - **Validates: Requirements 3.3, 3.4**
-  - [ ] 6.4 Commit position on drag end
+  - [x] 6.4 Commit position on drag end
     - Mouseup commits the new position
     - _Requirements: 3.5_
   - [ ]* 6.5 Write property test for drag commit

@@ -515,6 +515,21 @@
       pointer-events: none;
     }
     .admin-toast.visible { opacity: 1; }
+
+    /* Selection and hover visual effects */
+    .selection-outline {
+      position: absolute;
+      pointer-events: none;
+      border: 2px solid #ff6600;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(255, 102, 0, 0.5), 0 0 20px rgba(255, 102, 0, 0.3);
+      animation: selection-pulse 2s ease-in-out infinite;
+      z-index: 5;
+    }
+    @keyframes selection-pulse {
+      0%, 100% { box-shadow: 0 0 10px rgba(255, 102, 0, 0.5), 0 0 20px rgba(255, 102, 0, 0.3); }
+      50% { box-shadow: 0 0 15px rgba(255, 102, 0, 0.7), 0 0 30px rgba(255, 102, 0, 0.5); }
+    }
   </style>
 </head>
 <body>
@@ -1786,6 +1801,62 @@
         },
 
         /**
+         * Update a placed treat's position (for drag-to-reposition)
+         * Maintains surface normal alignment during repositioning.
+         * (Requirements 3.3, 3.4)
+         * 
+         * @param {string} treatId - ID of the treat to update
+         * @param {Object} hit - RaycastHit { position, normal, distance }
+         * @returns {boolean} True if position was updated
+         */
+        updateTreatPosition(treatId, hit) {
+          const entry = treats.get(treatId);
+          if (!entry) {
+            console.warn('TreatManager: Cannot update position - treat not found:', treatId);
+            return false;
+          }
+
+          const { treat, mesh } = entry;
+          
+          // Calculate base offset from the treat's stored offset
+          // We need to recompute the bounding box offset for proper surface alignment
+          const boundingBox = new THREE.Box3().setFromObject(mesh);
+          const modelMinY = boundingBox.min.y - mesh.position.y; // Get local min Y
+          const baseOffset = -modelMinY;
+          
+          // Orient to new surface normal (Requirement 3.4)
+          orientToNormal(mesh, hit.normal);
+          
+          // Offset along the surface normal direction
+          const normalVec = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
+          const offsetAlongNormal = normalVec.clone().multiplyScalar(baseOffset);
+          
+          // Apply stored offset from original placement
+          const storedOffset = treat.offset || { x: 0, y: 0, z: 0 };
+          
+          // Calculate final position
+          const finalPos = {
+            x: hit.position.x + storedOffset.x + offsetAlongNormal.x,
+            y: hit.position.y + storedOffset.y + offsetAlongNormal.y,
+            z: hit.position.z + storedOffset.z + offsetAlongNormal.z,
+          };
+          
+          // Update mesh position
+          mesh.position.set(finalPos.x, finalPos.y, finalPos.z);
+          
+          // Update treat data
+          treat.position = { x: finalPos.x, y: finalPos.y, z: finalPos.z };
+          treat.rotation = {
+            x: mesh.rotation.x,
+            y: mesh.rotation.y,
+            z: mesh.rotation.z,
+            order: mesh.rotation.order,
+          };
+          
+          return true;
+        },
+
+        /**
          * Check if a treat is currently selected for placement
          * @returns {boolean}
          */
@@ -1913,6 +1984,349 @@
     // Initialize ModeManager
     const modeManager = createModeManager();
 
+    // ============================================
+    // SelectionManager - Treat selection and visual feedback
+    // ============================================
+
+    /**
+     * Creates a SelectionManager for handling treat selection and visual feedback.
+     * Tracks selected and hovered treat IDs, emits events, and manages visual effects.
+     * 
+     * Features:
+     * - Selection outline/glow effect (orange, pulsing)
+     * - Hover highlighting (brightness increase)
+     * - Click-to-select in edit mode
+     * - Event emission for selection/deselection/hover
+     * 
+     * @param {THREE.Scene} scene - The Three.js scene
+     * @param {Object} treatManager - The TreatManager instance
+     * @returns {Object} SelectionManager interface
+     */
+    function createSelectionManager(scene, treatManager) {
+      // State
+      let selectedTreatId = null;
+      let hoveredTreatId = null;
+      
+      // Visual effect state
+      const originalMaterials = new Map(); // treatId -> Map of original material properties
+      const HOVER_BRIGHTNESS = 0.2; // 20% brightness increase on hover
+      const SELECTION_EMISSIVE = new THREE.Color(0xff6600); // Orange glow
+      const SELECTION_EMISSIVE_INTENSITY = 0.3;
+      
+      // Event listeners
+      const listeners = {
+        select: new Set(),
+        deselect: new Set(),
+        hover: new Set(),
+      };
+
+      /**
+       * Emit an event to all registered listeners
+       * @param {string} event - Event name
+       * @param {*} data - Event data
+       */
+      function emit(event, data) {
+        if (listeners[event]) {
+          listeners[event].forEach((callback) => {
+            try {
+              callback(data);
+            } catch (error) {
+              console.error(`SelectionManager: Error in ${event} callback:`, error);
+            }
+          });
+        }
+      }
+
+      /**
+       * Store original material properties for a treat mesh
+       * @param {string} treatId - The treat ID
+       * @param {THREE.Object3D} mesh - The treat mesh
+       */
+      function storeOriginalMaterials(treatId, mesh) {
+        if (originalMaterials.has(treatId)) return;
+        
+        const materialsMap = new Map();
+        mesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat, index) => {
+              const key = `${child.uuid}-${index}`;
+              materialsMap.set(key, {
+                emissive: mat.emissive ? mat.emissive.clone() : null,
+                emissiveIntensity: mat.emissiveIntensity || 0,
+                color: mat.color ? mat.color.clone() : null,
+              });
+            });
+          }
+        });
+        originalMaterials.set(treatId, materialsMap);
+      }
+
+      /**
+       * Restore original material properties for a treat mesh
+       * @param {string} treatId - The treat ID
+       * @param {THREE.Object3D} mesh - The treat mesh
+       */
+      function restoreOriginalMaterials(treatId, mesh) {
+        const materialsMap = originalMaterials.get(treatId);
+        if (!materialsMap) return;
+        
+        mesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat, index) => {
+              const key = `${child.uuid}-${index}`;
+              const original = materialsMap.get(key);
+              if (original) {
+                if (original.emissive && mat.emissive) {
+                  mat.emissive.copy(original.emissive);
+                }
+                mat.emissiveIntensity = original.emissiveIntensity;
+                if (original.color && mat.color) {
+                  mat.color.copy(original.color);
+                }
+              }
+            });
+          }
+        });
+      }
+
+      /**
+       * Apply selection visual effect to a treat mesh
+       * Orange outline with subtle pulsing glow
+       * @param {THREE.Object3D} mesh - The treat mesh
+       */
+      function applySelectionEffect(mesh) {
+        mesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat) => {
+              // Add orange emissive glow for selection
+              if (mat.emissive) {
+                mat.emissive.copy(SELECTION_EMISSIVE);
+                mat.emissiveIntensity = SELECTION_EMISSIVE_INTENSITY;
+              }
+            });
+          }
+        });
+      }
+
+      /**
+       * Apply hover visual effect to a treat mesh
+       * Light highlight (brightness increase)
+       * @param {THREE.Object3D} mesh - The treat mesh
+       */
+      function applyHoverEffect(mesh) {
+        mesh.traverse((child) => {
+          if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((mat) => {
+              // Increase brightness by lerping color toward white
+              if (mat.color) {
+                const brighterColor = mat.color.clone();
+                brighterColor.lerp(new THREE.Color(0xffffff), HOVER_BRIGHTNESS);
+                mat.color.copy(brighterColor);
+              }
+            });
+          }
+        });
+      }
+
+      /**
+       * Remove hover effect from a treat mesh (restore to original or selection state)
+       * @param {string} treatId - The treat ID
+       * @param {THREE.Object3D} mesh - The treat mesh
+       */
+      function removeHoverEffect(treatId, mesh) {
+        // Restore original materials first
+        restoreOriginalMaterials(treatId, mesh);
+        
+        // If this treat is selected, reapply selection effect
+        if (treatId === selectedTreatId) {
+          applySelectionEffect(mesh);
+        }
+      }
+
+      return {
+        /**
+         * Select a treat for adjustment
+         * @param {string} treatId - ID of the treat to select
+         */
+        select(treatId) {
+          // Deselect previous if different
+          if (selectedTreatId && selectedTreatId !== treatId) {
+            this.deselect();
+          }
+          
+          if (selectedTreatId === treatId) return; // Already selected
+          
+          const mesh = treatManager.getMesh(treatId);
+          if (!mesh) {
+            console.warn('SelectionManager: Cannot select - treat mesh not found:', treatId);
+            return;
+          }
+          
+          // Store original materials before modifying
+          storeOriginalMaterials(treatId, mesh);
+          
+          selectedTreatId = treatId;
+          
+          // Apply selection visual effect
+          applySelectionEffect(mesh);
+          
+          // Emit select event
+          const treat = treatManager.getTreat(treatId);
+          emit('select', { treatId, treat });
+          
+          console.log('SelectionManager: Selected treat:', treatId);
+        },
+
+        /**
+         * Deselect the currently selected treat
+         */
+        deselect() {
+          if (!selectedTreatId) return;
+          
+          const previousId = selectedTreatId;
+          const mesh = treatManager.getMesh(previousId);
+          
+          if (mesh) {
+            // Restore original materials
+            restoreOriginalMaterials(previousId, mesh);
+          }
+          
+          selectedTreatId = null;
+          
+          // Emit deselect event
+          emit('deselect', { treatId: previousId });
+          
+          console.log('SelectionManager: Deselected treat:', previousId);
+        },
+
+        /**
+         * Get the currently selected treat ID
+         * @returns {string|null} The selected treat ID or null
+         */
+        getSelected() {
+          return selectedTreatId;
+        },
+
+        /**
+         * Check if a specific treat is selected
+         * @param {string} treatId - The treat ID to check
+         * @returns {boolean} True if the treat is selected
+         */
+        isSelected(treatId) {
+          return selectedTreatId === treatId;
+        },
+
+        /**
+         * Set the hovered treat (for visual feedback)
+         * @param {string|null} treatId - The treat ID being hovered, or null to clear
+         */
+        setHovered(treatId) {
+          // Don't hover the selected treat (it already has selection effect)
+          if (treatId === selectedTreatId) {
+            treatId = null;
+          }
+          
+          if (hoveredTreatId === treatId) return; // No change
+          
+          // Remove hover effect from previous
+          if (hoveredTreatId) {
+            const prevMesh = treatManager.getMesh(hoveredTreatId);
+            if (prevMesh) {
+              removeHoverEffect(hoveredTreatId, prevMesh);
+            }
+          }
+          
+          const previousHovered = hoveredTreatId;
+          hoveredTreatId = treatId;
+          
+          // Apply hover effect to new
+          if (hoveredTreatId) {
+            const mesh = treatManager.getMesh(hoveredTreatId);
+            if (mesh) {
+              // Store original materials if not already stored
+              storeOriginalMaterials(hoveredTreatId, mesh);
+              applyHoverEffect(mesh);
+            }
+          }
+          
+          // Emit hover event
+          emit('hover', { treatId: hoveredTreatId, previousTreatId: previousHovered });
+        },
+
+        /**
+         * Get the currently hovered treat ID
+         * @returns {string|null} The hovered treat ID or null
+         */
+        getHovered() {
+          return hoveredTreatId;
+        },
+
+        /**
+         * Update selection visual (call in render loop for animated effects)
+         * Currently handles the pulsing glow animation via CSS
+         */
+        updateSelectionVisual() {
+          // The pulsing effect is handled via emissive material
+          // This method can be extended for more complex shader-based effects
+        },
+
+        /**
+         * Update hover visual (call in render loop if needed)
+         */
+        updateHoverVisual() {
+          // Currently static effect, can be extended for animated hover
+        },
+
+        /**
+         * Subscribe to selection events
+         * @param {string} event - Event name ('select', 'deselect', 'hover')
+         * @param {Function} callback - Callback function
+         * @returns {Function} Unsubscribe function
+         */
+        on(event, callback) {
+          if (listeners[event]) {
+            listeners[event].add(callback);
+            return () => listeners[event].delete(callback);
+          }
+          return () => {};
+        },
+
+        /**
+         * Clean up when a treat is removed
+         * @param {string} treatId - The removed treat ID
+         */
+        onTreatRemoved(treatId) {
+          // Clear stored materials
+          originalMaterials.delete(treatId);
+          
+          // Deselect if this was the selected treat
+          if (selectedTreatId === treatId) {
+            selectedTreatId = null;
+            emit('deselect', { treatId });
+          }
+          
+          // Clear hover if this was the hovered treat
+          if (hoveredTreatId === treatId) {
+            hoveredTreatId = null;
+          }
+        },
+
+        /**
+         * Dispose all resources
+         */
+        dispose() {
+          selectedTreatId = null;
+          hoveredTreatId = null;
+          originalMaterials.clear();
+          Object.values(listeners).forEach((set) => set.clear());
+        },
+      };
+    }
+
     // Configuration - easy to tweak
     const CONFIG = {
       moveSpeed: 3,
@@ -2023,6 +2437,7 @@
     let raycastSystem = null;
     let treatManager = null;
     let ghostPreview = null;
+    let selectionManager = null;
     
     // Load splat with progress tracking using SplatLoader
     const splatLoader = new SplatLoader();
@@ -2060,6 +2475,7 @@
         raycastSystem = createRaycastSystem(camera, splatMesh);
         treatManager = createTreatManager(scene);
         ghostPreview = createGhostPreview(scene);
+        selectionManager = createSelectionManager(scene, treatManager);
         
         // Setup event listeners now that treatManager exists
         setupTreatEventListeners();
@@ -2577,14 +2993,33 @@
       treatManager.on('treatRemoved', (treat) => {
         console.log('Treat removed:', treat);
         updatePlacedTreatsList();
+        // Notify selectionManager when a treat is removed
+        if (selectionManager) {
+          selectionManager.onTreatRemoved(treat.id);
+        }
       });
       
       treatManager.on('treatClicked', (treat) => {
         console.log('Treat clicked:', treat);
-        if (treat.metadata && treat.metadata.text) {
+        // In edit mode, select the treat for adjustment (Requirement 3.1)
+        if (modeManager.isEditMode() && selectionManager && !isInPlacementMode) {
+          selectionManager.select(treat.id);
+        } else if (treat.metadata && treat.metadata.text) {
+          // In explore mode or if not in edit mode, show message
           showMessageModal(treat.metadata.text);
         }
       });
+      
+      // Setup selectionManager event listeners
+      if (selectionManager) {
+        selectionManager.on('select', ({ treatId, treat }) => {
+          console.log('SelectionManager: Treat selected for adjustment:', treatId);
+        });
+        
+        selectionManager.on('deselect', ({ treatId }) => {
+          console.log('SelectionManager: Treat deselected:', treatId);
+        });
+      }
     }
 
     // ============================================
@@ -2745,6 +3180,13 @@
     let lastValidHit = null;
     let selectedPlacedTreatId = null; // Track selected treat for adjustment (Requirement 2.3, 3.1)
     
+    // ============================================
+    // Drag-to-Reposition State (Requirements 3.3, 3.4, 3.5)
+    // ============================================
+    let isDragging = false;
+    let dragStartPosition = null; // Store initial position for potential undo
+    let lastDragHit = null; // Track last valid drag position
+    
     function enterPlacementMode() {
       isInPlacementMode = true;
       // Change cursor to crosshair (Requirement 6.1)
@@ -2765,21 +3207,35 @@
     
     /**
      * Select a placed treat for adjustment (Requirement 2.3, 3.1)
+     * Uses SelectionManager for visual feedback (Requirement 3.2, 6.4)
      * @param {string} treatId - ID of the treat to select
      */
     function selectPlacedTreatForAdjustment(treatId) {
       selectedPlacedTreatId = treatId;
+      
+      // Use SelectionManager for visual feedback (orange outline, glow effect)
+      if (selectionManager) {
+        selectionManager.select(treatId);
+      }
+      
       window.dispatchEvent(new CustomEvent('treat-selected-for-adjustment', { detail: { treatId } }));
       console.log('Selected treat for adjustment:', treatId);
     }
     
     /**
-     * Deselect the currently selected placed treat
+     * Deselect the currently selected placed treat (Requirement 3.6)
+     * Uses SelectionManager to remove visual feedback
      */
     function deselectPlacedTreat() {
       if (selectedPlacedTreatId) {
         const previousId = selectedPlacedTreatId;
         selectedPlacedTreatId = null;
+        
+        // Use SelectionManager to remove visual feedback
+        if (selectionManager) {
+          selectionManager.deselect();
+        }
+        
         window.dispatchEvent(new CustomEvent('treat-deselected', { detail: { treatId: previousId } }));
         console.log('Deselected treat:', previousId);
       }
@@ -2793,8 +3249,151 @@
       return selectedPlacedTreatId;
     }
     
+    // ============================================
+    // Drag-to-Reposition Functions (Requirements 3.3, 3.4, 3.5)
+    // ============================================
+    
+    /**
+     * Start dragging a selected treat (Requirement 3.3)
+     * @param {number} clientX - Mouse X position
+     * @param {number} clientY - Mouse Y position
+     */
+    function startDrag(clientX, clientY) {
+      if (!selectedPlacedTreatId || !treatManager) return;
+      
+      const treat = treatManager.getTreat(selectedPlacedTreatId);
+      if (!treat) return;
+      
+      isDragging = true;
+      // Store initial position for potential undo
+      dragStartPosition = { ...treat.position };
+      lastDragHit = null;
+      
+      // Change cursor to grabbing
+      renderer.domElement.style.cursor = 'grabbing';
+      
+      console.log('Started dragging treat:', selectedPlacedTreatId);
+    }
+    
+    /**
+     * Update treat position during drag (Requirements 3.3, 3.4)
+     * @param {number} clientX - Mouse X position
+     * @param {number} clientY - Mouse Y position
+     */
+    function updateDrag(clientX, clientY) {
+      if (!isDragging || !selectedPlacedTreatId || !treatManager || !raycastSystem) return;
+      
+      const hit = raycastSystem.raycastFromEvent(clientX, clientY, renderer.domElement);
+      
+      if (hit) {
+        // Update treat position in real-time (Requirement 3.4)
+        treatManager.updateTreatPosition(selectedPlacedTreatId, hit);
+        lastDragHit = hit;
+        
+        // Update surface ring to show new position
+        updateSurfaceRing(hit);
+      }
+    }
+    
+    /**
+     * End drag and commit position (Requirement 3.5)
+     */
+    function endDrag() {
+      if (!isDragging) return;
+      
+      isDragging = false;
+      
+      // Hide surface ring
+      hideSurfaceRing();
+      
+      // Restore cursor
+      if (selectedPlacedTreatId) {
+        renderer.domElement.style.cursor = 'pointer';
+      } else {
+        renderer.domElement.style.cursor = 'default';
+      }
+      
+      console.log('Ended dragging treat:', selectedPlacedTreatId, 'at position:', lastDragHit?.position);
+      
+      // Clear drag state
+      dragStartPosition = null;
+      lastDragHit = null;
+    }
+    
+    /**
+     * Cancel drag and restore original position
+     */
+    function cancelDrag() {
+      if (!isDragging || !selectedPlacedTreatId || !dragStartPosition) return;
+      
+      // Restore original position
+      const mesh = treatManager.getMesh(selectedPlacedTreatId);
+      if (mesh) {
+        mesh.position.set(dragStartPosition.x, dragStartPosition.y, dragStartPosition.z);
+        const treat = treatManager.getTreat(selectedPlacedTreatId);
+        if (treat) {
+          treat.position = { ...dragStartPosition };
+        }
+      }
+      
+      endDrag();
+      console.log('Cancelled drag, restored position');
+    }
+    
+    // ============================================
+    // Mouse Event Handlers for Drag-to-Reposition
+    // ============================================
+    
+    // Mousedown to start drag on selected treat (Requirement 3.3)
+    renderer.domElement.addEventListener('mousedown', (e) => {
+      if (isMobile) return;
+      if (!modeManager.isEditMode()) return;
+      if (isInPlacementMode) return;
+      if (isLocked) return;
+      
+      // Check if we clicked on the currently selected treat
+      if (selectedPlacedTreatId) {
+        const clickedTreatId = raycastTreats(e.clientX, e.clientY);
+        if (clickedTreatId === selectedPlacedTreatId) {
+          // Start drag on the selected treat
+          startDrag(e.clientX, e.clientY);
+          e.preventDefault();
+        }
+      }
+    });
+    
+    // Mouseup to end drag (Requirement 3.5)
+    document.addEventListener('mouseup', (e) => {
+      if (isDragging) {
+        endDrag();
+      }
+    });
+    
     // Update ghost preview position on mouse move (Requirements 1.1, 1.2)
+    // Also handles hover highlighting in edit mode (Requirement 6.3)
+    // Also handles drag-to-reposition (Requirements 3.3, 3.4)
     renderer.domElement.addEventListener('mousemove', (e) => {
+      // Handle drag-to-reposition (Requirements 3.3, 3.4)
+      if (isDragging) {
+        updateDrag(e.clientX, e.clientY);
+        return; // Don't process other mousemove logic while dragging
+      }
+      
+      // Handle hover highlighting in edit mode when not in placement mode (Requirement 6.3)
+      if (modeManager.isEditMode() && !isInPlacementMode && selectionManager && !isLocked) {
+        const hoveredTreatId = raycastTreats(e.clientX, e.clientY);
+        selectionManager.setHovered(hoveredTreatId);
+        
+        // Change cursor to pointer when hovering over a treat
+        // Show grab cursor when hovering over selected treat
+        if (hoveredTreatId === selectedPlacedTreatId && selectedPlacedTreatId) {
+          renderer.domElement.style.cursor = 'grab';
+        } else {
+          renderer.domElement.style.cursor = hoveredTreatId ? 'pointer' : 'default';
+        }
+      }
+      
+      // Handle ghost preview positioning during placement mode
       if (!isInPlacementMode || !ghostPreview || !raycastSystem || isLocked) return;
       
       const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
@@ -2837,15 +3436,23 @@
       }
     }, { passive: true });
     
-    // Escape key to cancel placement mode (Requirement 2.4)
+    // Escape key to cancel placement mode (Requirement 2.4) and deselect treats (Requirement 3.6)
     document.addEventListener('keydown', (e) => {
-      if (e.code === 'Escape' && isInPlacementMode) {
-        exitPlacementMode();
-        if (treatManager) treatManager.clearSelection();
-        // Clear preset selections
-        document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
-        showStatus('Placement cancelled', 'ready');
-        setTimeout(hideStatus, 1500);
+      if (e.code === 'Escape') {
+        if (isInPlacementMode) {
+          // Cancel placement mode
+          exitPlacementMode();
+          if (treatManager) treatManager.clearSelection();
+          // Clear preset selections
+          document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+          showStatus('Placement cancelled', 'ready');
+          setTimeout(hideStatus, 1500);
+        } else if (selectedPlacedTreatId) {
+          // Deselect the currently selected treat (Requirement 3.6)
+          deselectPlacedTreat();
+          showStatus('Treat deselected', 'ready');
+          setTimeout(hideStatus, 1500);
+        }
       }
     });
 
@@ -2859,6 +3466,12 @@
         if (clickedTreatId) {
           treatManager.onTreatClick(clickedTreatId);
           return;
+        }
+        
+        // Clicked elsewhere - deselect any selected treat (Requirement 3.6)
+        if (selectedPlacedTreatId && !isInPlacementMode) {
+          deselectPlacedTreat();
+          // Don't return - continue to check for other actions
         }
         
         // If a treat is selected and we're in placement mode, confirm placement
@@ -2902,8 +3515,8 @@
           // Selection exists but not in placement mode - enter placement mode
           enterPlacementMode();
           showStatus('Move cursor to preview placement position', 'ready');
-        } else {
-          // No treat selected, just show hit marker for feedback
+        } else if (!selectedPlacedTreatId) {
+          // No treat selected and no placed treat selected, just show hit marker for feedback
           const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
           if (hit) {
             showHitMarker(hit);
