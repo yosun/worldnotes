@@ -139,24 +139,24 @@
     - **Property 7: Treat restoration completeness**
     - **Validates: Requirements 6.2**
 
-- [ ] 11. Implement StorageService with S3 (client-side)
-  - [ ] 11.1 Set up AWS Cognito Identity Pool
+- [x] 11. Implement StorageService with S3 (client-side)
+  - [x] 11.1 Set up AWS Cognito Identity Pool
     - Create unauthenticated identity pool for anonymous users
     - Configure IAM role with scoped S3 permissions (scenes/ prefix only)
     - _Requirements: 6.1, 6.2_
-  - [ ] 11.2 Create StorageService class using AWS SDK
+  - [x] 11.2 Create StorageService class using AWS SDK
     - Use @aws-sdk/client-s3 with Cognito credentials provider
     - Implement saveScene() - generate UUID, PutObject to S3
     - Implement loadScene() - GetObject from S3
     - Generate shareable URLs
     - _Requirements: 6.1, 6.2_
 
-- [ ] 12. Create share functionality UI
-  - [ ] 12.1 Add share button and modal
+- [x] 12. Create share functionality UI
+  - [x] 12.1 Add share button and modal
     - Save scene button
     - Display shareable link with copy button
     - _Requirements: 6.1, 6.2_
-  - [ ] 12.2 Load scene from URL parameter
+  - [x] 12.2 Load scene from URL parameter
     - Parse ?scene=uuid from URL
     - Load and restore scene state
     - _Requirements: 6.2_

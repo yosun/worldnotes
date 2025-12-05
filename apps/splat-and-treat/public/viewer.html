@@ -1022,6 +1022,166 @@
             0 0 30px rgba(255, 102, 0, 0.5);
         }
       }
+
+      /* Share button */
+      .share-btn {
+        position: absolute;
+        top: 1rem;
+        right: 8rem;
+        padding: 0.5rem 1rem;
+        background: rgba(0, 180, 100, 0.8);
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 1rem;
+        font-family: system-ui, -apple-system, sans-serif;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.2s, transform 0.1s;
+        z-index: 10;
+      }
+      .share-btn:hover {
+        background: rgba(0, 200, 120, 1);
+      }
+      .share-btn:active {
+        transform: scale(0.98);
+      }
+      .share-btn:disabled {
+        background: rgba(100, 100, 100, 0.5);
+        cursor: not-allowed;
+      }
+      .share-btn .icon {
+        font-size: 1.2rem;
+      }
+
+      /* Share modal */
+      .share-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+      }
+      .share-modal.visible {
+        display: flex;
+      }
+      .share-modal .modal-content {
+        background: rgba(26, 26, 46, 0.98);
+        border: 2px solid #00b464;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        max-width: 450px;
+        width: 90%;
+        color: white;
+        font-family: system-ui, -apple-system, sans-serif;
+        box-shadow: 0 8px 32px rgba(0, 180, 100, 0.3);
+      }
+      .share-modal h3 {
+        margin: 0 0 1rem 0;
+        color: #00b464;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1.25rem;
+      }
+      .share-modal .share-status {
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+      }
+      .share-modal .share-status.saving {
+        background: rgba(255, 165, 0, 0.2);
+        color: #ffa500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .share-modal .share-status.success {
+        background: rgba(0, 255, 100, 0.15);
+        color: #00ff64;
+      }
+      .share-modal .share-status.error {
+        background: rgba(255, 0, 0, 0.2);
+        color: #ff6666;
+      }
+      .share-modal .share-url-container {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .share-modal .share-url-input {
+        flex: 1;
+        padding: 0.75rem;
+        border: 1px solid rgba(0, 180, 100, 0.5);
+        border-radius: 0.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 0.875rem;
+        font-family: monospace;
+      }
+      .share-modal .share-url-input:focus {
+        outline: none;
+        border-color: #00b464;
+      }
+      .share-modal .copy-url-btn {
+        padding: 0.75rem 1rem;
+        background: rgba(0, 180, 100, 0.8);
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+        white-space: nowrap;
+      }
+      .share-modal .copy-url-btn:hover {
+        background: rgba(0, 200, 120, 1);
+      }
+      .share-modal .copy-url-btn.copied {
+        background: rgba(0, 255, 100, 0.8);
+      }
+      .share-modal .share-info {
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+      }
+      .share-modal .modal-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+      }
+      .share-modal .close-btn {
+        padding: 0.5rem 1.5rem;
+        background: rgba(138, 43, 226, 0.6);
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background 0.2s;
+      }
+      .share-modal .close-btn:hover {
+        background: rgba(138, 43, 226, 0.8);
+      }
+      .share-modal .spinner-small {
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid #ffa500;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      .share-modal .treat-count {
+        font-size: 0.875rem;
+        color: #ccc;
+        margin-bottom: 0.5rem;
+      }
     </style>
   </head>
   <body>
@@ -1041,6 +1201,35 @@
       <span class="icon">👁️</span>
       <span id="mode-label">Explore</span>
     </button>
+
+    <!-- Share button -->
+    <button class="share-btn overlay" id="share-btn">
+      <span class="icon">🔗</span>
+      <span>Share</span>
+    </button>
+
+    <!-- Share modal -->
+    <div class="share-modal" id="share-modal">
+      <div class="modal-content">
+        <h3><span>🔗</span> Share Your Creation</h3>
+        <div class="treat-count" id="share-treat-count">0 treats placed</div>
+        <div class="share-status saving" id="share-status" style="display: none;">
+          <div class="spinner-small"></div>
+          <span>Saving scene...</span>
+        </div>
+        <div class="share-url-container" id="share-url-container" style="display: none;">
+          <input type="text" class="share-url-input" id="share-url-input" readonly />
+          <button class="copy-url-btn" id="copy-url-btn">📋 Copy</button>
+        </div>
+        <div class="share-info">
+          Share this link with friends to let them explore your decorated world!
+          They'll see all the treats you've placed.
+        </div>
+        <div class="modal-actions">
+          <button class="close-btn" id="close-share-modal-btn">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Mode change indicator -->
     <div class="mode-badge overlay" id="mode-badge">Explore Mode</div>
@@ -2983,6 +3172,10 @@
       const shouldFlip = flipParam === null || flipParam === '1' || flipParam === 'true';
       console.log('🔄 Flip SPZ:', shouldFlip, '(param:', flipParam, ')');
 
+      // Scene ID for loading shared scenes
+      const sceneIdParam = params.get('scene');
+      let worldUrl = spzUrl; // Track the world URL for scene state
+
       // Default treat GLB filename (e.g., 'geomarker_animated.glb')
       const S3_BASE_URL = 'https://s3.amazonaws.com/worldmatica/';
       const defaultTreatFile = params.get('defaultTreat') || 'geomarker_animated.glb';
@@ -3116,6 +3309,9 @@
           setupTreatEventListeners();
 
           hideLoading();
+
+          // Check for shared scene to load after everything is initialized
+          checkAndLoadSharedScene();
         },
         // onProgress - called during download/decode
         (event) => {
@@ -3746,10 +3942,14 @@
 
       // Desktop keyboard controls
       document.addEventListener('keydown', (e) => {
+        // Ignore movement keys when typing in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if (keyMap[e.code]) moveState[keyMap[e.code]] = true;
       });
 
       document.addEventListener('keyup', (e) => {
+        // Ignore movement keys when typing in input fields
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if (keyMap[e.code]) moveState[keyMap[e.code]] = false;
       });
 
@@ -4848,6 +5048,328 @@
           hideTreatEditor();
         }
       });
+
+      // ============================================
+      // Share Functionality
+      // ============================================
+
+      // AWS Configuration (from environment or defaults)
+      const AWS_CONFIG = {
+        region: 'us-east-1',
+        identityPoolId: 'us-east-1:8988c26a-2063-4e34-9ef3-c65c9aa7103f',
+        bucketName: 'splatntreat',
+        appUrl: window.location.origin,
+      };
+
+      // Share modal elements
+      const shareBtn = document.getElementById('share-btn');
+      const shareModal = document.getElementById('share-modal');
+      const shareStatus = document.getElementById('share-status');
+      const shareUrlContainer = document.getElementById('share-url-container');
+      const shareUrlInput = document.getElementById('share-url-input');
+      const copyUrlBtn = document.getElementById('copy-url-btn');
+      const closeShareModalBtn = document.getElementById('close-share-modal-btn');
+      const shareTreatCount = document.getElementById('share-treat-count');
+
+      // Current scene ID (set after first save)
+      let currentSceneId = null;
+
+      /**
+       * Generate a UUID v4
+       */
+      function generateUUID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === 'x' ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      }
+
+      /**
+       * Build scene state from current treats
+       */
+      function buildSceneState() {
+        const treats = treatManager ? treatManager.getAllTreats() : [];
+        return {
+          version: 1,
+          worldUrl: worldUrl || '',
+          treats: treats.map((t) => ({
+            id: t.id,
+            type: t.type,
+            glbUrl: t.glbUrl,
+            position: { x: t.position.x, y: t.position.y, z: t.position.z },
+            rotation: {
+              x: t.rotation.x,
+              y: t.rotation.y,
+              z: t.rotation.z,
+              order: t.rotation.order || 'XYZ',
+            },
+            scale: { x: t.scale.x, y: t.scale.y, z: t.scale.z },
+            metadata: { ...t.metadata },
+          })),
+          waypoints: [],
+          paths: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
+      /**
+       * Save scene to S3 using AWS SDK
+       */
+      async function saveSceneToS3(sceneState) {
+        // Dynamically import AWS SDK
+        const { S3Client, PutObjectCommand } = await import(
+          'https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3.600.0/+esm'
+        );
+        const { fromCognitoIdentityPool } = await import(
+          'https://cdn.jsdelivr.net/npm/@aws-sdk/credential-providers@3.600.0/+esm'
+        );
+
+        const s3Client = new S3Client({
+          region: AWS_CONFIG.region,
+          credentials: fromCognitoIdentityPool({
+            identityPoolId: AWS_CONFIG.identityPoolId,
+            clientConfig: { region: AWS_CONFIG.region },
+          }),
+        });
+
+        const sceneId = currentSceneId || generateUUID();
+        const s3Key = `scenes/${sceneId}.json`;
+
+        // Update timestamps
+        sceneState.updatedAt = new Date().toISOString();
+        if (!currentSceneId) {
+          sceneState.createdAt = sceneState.updatedAt;
+        }
+
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: AWS_CONFIG.bucketName,
+            Key: s3Key,
+            Body: JSON.stringify(sceneState),
+            ContentType: 'application/json',
+          })
+        );
+
+        currentSceneId = sceneId;
+        return {
+          sceneId,
+          shareUrl: `${AWS_CONFIG.appUrl}?scene=${encodeURIComponent(sceneId)}`,
+          s3Key,
+        };
+      }
+
+      /**
+       * Show share modal and save scene
+       */
+      async function showShareModal() {
+        const treats = treatManager ? treatManager.getAllTreats() : [];
+        shareTreatCount.textContent = `${treats.length} treat${treats.length !== 1 ? 's' : ''} placed`;
+
+        // Show modal
+        shareModal.classList.add('visible');
+
+        // Reset state
+        shareStatus.style.display = 'flex';
+        shareStatus.className = 'share-status saving';
+        shareStatus.innerHTML = '<div class="spinner-small"></div><span>Saving scene...</span>';
+        shareUrlContainer.style.display = 'none';
+
+        try {
+          const sceneState = buildSceneState();
+          const result = await saveSceneToS3(sceneState);
+
+          // Show success
+          shareStatus.className = 'share-status success';
+          shareStatus.innerHTML = '✓ Scene saved successfully!';
+
+          // Show URL
+          shareUrlInput.value = result.shareUrl;
+          shareUrlContainer.style.display = 'flex';
+        } catch (error) {
+          console.error('Failed to save scene:', error);
+          shareStatus.className = 'share-status error';
+          shareStatus.innerHTML = `✕ Failed to save: ${error.message}`;
+        }
+      }
+
+      /**
+       * Copy share URL to clipboard
+       */
+      async function copyShareUrl() {
+        try {
+          await navigator.clipboard.writeText(shareUrlInput.value);
+          copyUrlBtn.textContent = '✓ Copied!';
+          copyUrlBtn.classList.add('copied');
+          setTimeout(() => {
+            copyUrlBtn.textContent = '📋 Copy';
+            copyUrlBtn.classList.remove('copied');
+          }, 2000);
+        } catch (error) {
+          // Fallback for older browsers
+          shareUrlInput.select();
+          document.execCommand('copy');
+          copyUrlBtn.textContent = '✓ Copied!';
+          copyUrlBtn.classList.add('copied');
+          setTimeout(() => {
+            copyUrlBtn.textContent = '📋 Copy';
+            copyUrlBtn.classList.remove('copied');
+          }, 2000);
+        }
+      }
+
+      // Share button click
+      shareBtn.addEventListener('click', showShareModal);
+
+      // Copy URL button click
+      copyUrlBtn.addEventListener('click', copyShareUrl);
+
+      // Close share modal
+      closeShareModalBtn.addEventListener('click', () => {
+        shareModal.classList.remove('visible');
+      });
+
+      // Close modal on backdrop click
+      shareModal.addEventListener('click', (e) => {
+        if (e.target === shareModal) {
+          shareModal.classList.remove('visible');
+        }
+      });
+
+      // Close modal on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && shareModal.classList.contains('visible')) {
+          shareModal.classList.remove('visible');
+        }
+      });
+
+      /**
+       * Load scene from S3 by scene ID
+       * @param {string} sceneId - The scene ID to load
+       * @returns {Promise<Object|null>} The scene state or null if not found
+       */
+      async function loadSceneFromS3(sceneId) {
+        try {
+          const { S3Client, GetObjectCommand } = await import(
+            'https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3@3.600.0/+esm'
+          );
+          const { fromCognitoIdentityPool } = await import(
+            'https://cdn.jsdelivr.net/npm/@aws-sdk/credential-providers@3.600.0/+esm'
+          );
+
+          const s3Client = new S3Client({
+            region: AWS_CONFIG.region,
+            credentials: fromCognitoIdentityPool({
+              identityPoolId: AWS_CONFIG.identityPoolId,
+              clientConfig: { region: AWS_CONFIG.region },
+            }),
+          });
+
+          const s3Key = `scenes/${sceneId}.json`;
+
+          const response = await s3Client.send(
+            new GetObjectCommand({
+              Bucket: AWS_CONFIG.bucketName,
+              Key: s3Key,
+            })
+          );
+
+          if (!response.Body) {
+            return null;
+          }
+
+          // Convert stream to string
+          const bodyString = await response.Body.transformToString();
+          return JSON.parse(bodyString);
+        } catch (error) {
+          if (error.name === 'NoSuchKey') {
+            console.warn('Scene not found:', sceneId);
+            return null;
+          }
+          throw error;
+        }
+      }
+
+      /**
+       * Restore treats from a loaded scene state
+       * @param {Object} sceneState - The scene state to restore
+       */
+      async function restoreSceneState(sceneState) {
+        if (!sceneState || !sceneState.treats || !treatManager) {
+          console.warn('Cannot restore scene: invalid state or treatManager not ready');
+          return;
+        }
+
+        console.log(`🔄 Restoring ${sceneState.treats.length} treats from shared scene`);
+
+        for (const treat of sceneState.treats) {
+          try {
+            // Load the GLB model
+            await treatManager.selectTreat(treat.glbUrl, treat.type);
+
+            // Set metadata
+            if (treat.metadata) {
+              treatManager.setMetadata(treat.metadata);
+            }
+
+            // Place at the saved transform
+            const placedTreat = treatManager.placeTreatAtTransform({
+              position: treat.position,
+              rotation: treat.rotation,
+              scale: treat.scale,
+            }, treat.metadata);
+
+            if (placedTreat) {
+              console.log(`✓ Restored treat: ${treat.id}`);
+            }
+          } catch (error) {
+            console.error(`Failed to restore treat ${treat.id}:`, error);
+          }
+        }
+
+        // Clear selection after restoring
+        treatManager.clearSelection();
+
+        // Update the placed treats list
+        updatePlacedTreatsList();
+
+        console.log('✅ Scene restoration complete');
+      }
+
+      /**
+       * Check for scene parameter and load shared scene
+       */
+      async function checkAndLoadSharedScene() {
+        if (!sceneIdParam) return;
+
+        console.log('🔗 Loading shared scene:', sceneIdParam);
+        currentSceneId = sceneIdParam;
+
+        try {
+          const sceneState = await loadSceneFromS3(sceneIdParam);
+
+          if (sceneState) {
+            // Update world URL from scene state if different
+            if (sceneState.worldUrl && sceneState.worldUrl !== worldUrl) {
+              console.log('⚠️ Scene was created in a different world:', sceneState.worldUrl);
+              // For now, we'll still restore treats in the current world
+            }
+
+            await restoreSceneState(sceneState);
+            showEditorToast(`Loaded shared scene with ${sceneState.treats.length} treats`);
+          } else {
+            console.warn('Shared scene not found');
+            showEditorToast('Shared scene not found', true);
+          }
+        } catch (error) {
+          console.error('Failed to load shared scene:', error);
+          showEditorToast('Failed to load shared scene', true);
+        }
+      }
 
       // Animation loop - reuse direction vector to reduce GC pressure
       const clock = new THREE.Clock();

@@ -15,3 +15,6 @@ export { createModeManager } from './mode/ModeManager';
 
 // Scene persistence (serialization/deserialization)
 export * from './persistence';
+
+// Services (storage, payments, AI)
+export * from './services';

@@ -11,11 +11,19 @@ import { SPECIAL_WORLD_IDS } from './config';
  * The 3D viewer is a separate vanilla JS page (public/viewer.html).
  */
 function App() {
-  // Check URL for direct viewer access
+  // Check URL for direct viewer access or shared scene
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const url = params.get('url');
     const name = params.get('name');
+    const sceneId = params.get('scene');
+    
+    // If scene ID present, redirect to viewer with scene parameter
+    // The viewer will load the scene from S3 and restore treats
+    if (sceneId) {
+      window.location.href = `/viewer.html?scene=${encodeURIComponent(sceneId)}&name=${encodeURIComponent(name || 'Shared Scene')}`;
+      return;
+    }
     
     // If URL params present, redirect to viewer
     if (url) {
