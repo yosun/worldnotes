@@ -126,8 +126,8 @@
 
 ## Phase 3: Save and Share
 
-- [ ] 10. Implement scene persistence
-  - [ ] 10.1 Create SceneSerializer and SceneDeserializer
+- [-] 10. Implement scene persistence
+  - [x] 10.1 Create SceneSerializer and SceneDeserializer
     - Implement toJSON() for SceneState serialization
     - Implement fromJSON() for SceneState deserialization
     - Handle Vector3 and Euler serialization

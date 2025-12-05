@@ -12,3 +12,6 @@ export * from './core/types';
 
 // Mode management
 export { createModeManager } from './mode/ModeManager';
+
+// Scene persistence (serialization/deserialization)
+export * from './persistence';
