@@ -26,7 +26,11 @@ function App() {
   const handleWorldSelect = useCallback((world: World) => {
     // Empty world - redirect to viewer with no URL (shows grid)
     if (world.id === SPECIAL_WORLD_IDS.EMPTY) {
-      window.location.href = `/viewer.html?name=${encodeURIComponent(world.name)}`;
+      let emptyUrl = `/viewer.html?name=${encodeURIComponent(world.name)}`;
+      if (world.defaultTreat) {
+        emptyUrl += `&defaultTreat=${encodeURIComponent(world.defaultTreat)}`;
+      }
+      window.location.href = emptyUrl;
       return;
     }
 
@@ -34,7 +38,33 @@ function App() {
     if (world.spzUrl) {
       const url = encodeURIComponent(world.spzUrl);
       const name = encodeURIComponent(world.name);
-      window.location.href = `/viewer.html?url=${url}&name=${name}`;
+      let viewerUrl = `/viewer.html?url=${url}&name=${name}`;
+
+      // Pass thumbnail for loading screen
+      if (world.thumbnail) {
+        viewerUrl += `&thumb=${encodeURIComponent(world.thumbnail)}`;
+      }
+
+      // Pass startPosition if defined
+      if (world.startPosition) {
+        const { position, rotation } = world.startPosition;
+        viewerUrl += `&px=${position.x}&py=${position.y}&pz=${position.z}`;
+        if (rotation) {
+          viewerUrl += `&rx=${rotation.x}&ry=${rotation.y}`;
+        }
+      }
+
+      // Pass world's default treat filename
+      if (world.defaultTreat) {
+        viewerUrl += `&defaultTreat=${encodeURIComponent(world.defaultTreat)}`;
+      }
+
+      // Pass flip setting (default true for most SPZ files)
+      if (world.flipY === false) {
+        viewerUrl += '&flip=0';
+      }
+
+      window.location.href = viewerUrl;
     }
   }, []);
 

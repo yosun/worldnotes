@@ -221,6 +221,10 @@ export interface World {
   description: string;
   /** Optional starting camera position */
   startPosition?: WorldStartPosition;
+  /** Default treat GLB filename (e.g., 'geomarker_animated.glb') - loaded from S3 base URL */
+  defaultTreat?: string;
+  /** Whether to flip the SPZ on Y axis (default: true - most SPZ files need flipping) */
+  flipY?: boolean;
 }
 
 /**

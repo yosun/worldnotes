@@ -44,6 +44,9 @@
       align-items: center;
       justify-content: center;
       background: #1a1a2e;
+      background-size: contain;
+      background-position: center;
+      background-repeat: no-repeat;
       z-index: 30;
       color: white;
       font-family: system-ui;
@@ -244,6 +247,11 @@
       background: rgba(100, 100, 100, 0.5);
       cursor: not-allowed;
     }
+    .treat-panel .cancel-btn {
+      background: rgba(255, 0, 0, 0.6);
+      color: white;
+    }
+    .treat-panel .cancel-btn:hover { background: rgba(255, 0, 0, 0.8); }
     .treat-panel .divider {
       border-top: 1px solid rgba(255, 255, 255, 0.1);
       margin: 1rem 0;
@@ -436,6 +444,41 @@
       margin-top: 0.5rem;
     }
     .admin-panel .export-btn:hover { background: rgba(0, 255, 136, 0.8); }
+    .admin-panel .coord-inputs {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+    .admin-panel .coord-inputs input {
+      flex: 1;
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      border-radius: 0.25rem;
+      color: #00ff88;
+      padding: 0.375rem;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.7rem;
+      width: 60px;
+      text-align: center;
+    }
+    .admin-panel .coord-inputs input:focus {
+      outline: none;
+      border-color: #00ff88;
+      background: rgba(0, 255, 136, 0.25);
+    }
+    .admin-panel .apply-btn {
+      width: 100%;
+      background: rgba(255, 165, 0, 0.6);
+      border: none;
+      color: #000;
+      padding: 0.375rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.7rem;
+      font-weight: bold;
+      margin-top: 0.25rem;
+    }
+    .admin-panel .apply-btn:hover { background: rgba(255, 165, 0, 0.8); }
     .admin-toast {
       position: fixed;
       top: 50%;
@@ -485,6 +528,9 @@
     
     <!-- Preset buttons -->
     <label>Quick Presets</label>
+    <button class="preset-btn selected" id="preset-geomarker" data-url="https://s3.amazonaws.com/worldmatica/geomarker_animated.glb">
+      <span>📍</span> Geomarker Pin
+    </button>
     <button class="preset-btn" id="preset-bottle" data-url="https://s3.amazonaws.com/worldmatica/message_in_a_bottle.glb">
       <span>🍾</span> Message in a Bottle
     </button>
@@ -508,6 +554,9 @@
     </div>
     
     <button class="load-btn" id="load-treat-btn">Load & Select Treat</button>
+    
+    <!-- Cancel placement button (shown when in placement mode) -->
+    <button class="cancel-btn" id="cancel-placement-btn" style="display: none;">✕ Cancel Placement</button>
     
     <!-- Placed treats list -->
     <div class="placed-treats" id="placed-treats-section" style="display: none;">
@@ -534,20 +583,37 @@
   <!-- Admin Camera Calibration Panel -->
   <div class="admin-panel overlay" id="admin-panel">
     <h4>🎯 Camera Calibration</h4>
+    
+    <!-- Editable Position -->
     <div class="coord-group">
       <div class="coord-label">Position (x, y, z)</div>
+      <div class="coord-inputs">
+        <input type="number" id="admin-pos-x" step="0.1" value="0" />
+        <input type="number" id="admin-pos-y" step="0.1" value="0" />
+        <input type="number" id="admin-pos-z" step="0.1" value="0" />
+      </div>
       <div class="coord-value">
         <span id="admin-pos">0.00, 0.00, 0.00</span>
         <button class="copy-btn" id="copy-pos">Copy</button>
       </div>
     </div>
+    
+    <!-- Editable Rotation -->
     <div class="coord-group">
       <div class="coord-label">Rotation (pitch, yaw)</div>
+      <div class="coord-inputs">
+        <input type="number" id="admin-rot-x" step="0.05" value="0" />
+        <input type="number" id="admin-rot-y" step="0.05" value="0" />
+      </div>
       <div class="coord-value">
         <span id="admin-rot">0.00, 0.00</span>
         <button class="copy-btn" id="copy-rot">Copy</button>
       </div>
     </div>
+    
+    <button class="apply-btn" id="apply-camera">⚡ Apply Values</button>
+    
+    <div class="divider"></div>
     <div class="coord-group">
       <div class="coord-label">Camera Direction</div>
       <div class="coord-value">
@@ -556,7 +622,7 @@
       </div>
     </div>
     <div class="divider"></div>
-    <button class="export-btn" id="export-config">📋 Copy Config Object</button>
+    <button class="export-btn" id="export-config">📋 Copy startPosition</button>
     <div class="divider"></div>
     <div class="hotkeys">
       <kbd>C</kbd> Copy position<br>
@@ -725,6 +791,7 @@
 
       /**
        * Set all materials in a mesh to ghost opacity (50%)
+       * Preserves glass material properties while adding ghost effect
        * @param {THREE.Object3D} mesh - The mesh to modify
        */
       function setGhostMaterials(mesh) {
@@ -738,17 +805,33 @@
               // Clone material to avoid affecting other instances
               const clonedMat = mat.clone();
               
-              // Store original color for restoration
+              // Check if this is originally a glass/transparent material
+              const isGlass = mat.transparent || 
+                              (mat.transmission && mat.transmission > 0) ||
+                              (mat.opacity !== undefined && mat.opacity < 1);
+              
+              // Store original properties for restoration
               const key = `${child.uuid}-${index}`;
               originalMaterials.set(key, {
                 color: clonedMat.color ? clonedMat.color.clone() : null,
                 emissive: clonedMat.emissive ? clonedMat.emissive.clone() : null,
+                opacity: clonedMat.opacity,
+                transparent: clonedMat.transparent,
+                isGlass: isGlass,
               });
               
               // Set ghost properties
               clonedMat.transparent = true;
-              clonedMat.opacity = GHOST_OPACITY;
               clonedMat.depthWrite = false; // Prevent z-fighting with placed treats
+              
+              // For glass materials, use a higher opacity to keep them visible
+              // For solid materials, use standard ghost opacity
+              if (isGlass) {
+                // Glass ghost: slightly more transparent than original
+                clonedMat.opacity = Math.min(mat.opacity || 0.5, 0.7) * 0.8;
+              } else {
+                clonedMat.opacity = GHOST_OPACITY;
+              }
               
               // Apply slight blue tint for valid state
               if (clonedMat.color) {
@@ -1335,6 +1418,36 @@
             // Preload the model
             preloadedModel = await loadGLB(glbUrl);
             
+            // Enhance materials for proper glass/transparency rendering with splat mesh
+            preloadedModel.traverse((child) => {
+              if (child.isMesh && child.material) {
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                materials.forEach((mat) => {
+                  // Check if this is a glass/transparent material (from GLB)
+                  // GLB glass materials typically have: transparent=true, or transmission > 0
+                  const isGlass = mat.transparent || 
+                                  (mat.transmission && mat.transmission > 0) ||
+                                  (mat.opacity !== undefined && mat.opacity < 1);
+                  
+                  if (isGlass) {
+                    // Ensure proper transparency rendering
+                    mat.transparent = true;
+                    mat.depthWrite = false; // Glass shouldn't write to depth buffer
+                    mat.side = THREE.DoubleSide; // Render both sides of glass
+                    
+                    // If material supports transmission (MeshPhysicalMaterial), enhance it
+                    if (mat.isMeshPhysicalMaterial) {
+                      // Boost transmission for better glass effect
+                      mat.transmission = mat.transmission || 0.9;
+                      mat.thickness = mat.thickness || 0.5;
+                      mat.roughness = Math.min(mat.roughness || 0, 0.1);
+                      mat.ior = mat.ior || 1.5; // Glass index of refraction
+                    }
+                  }
+                });
+              }
+            });
+            
             // Cache bounding box min Y for base offset (avoids recalculating on each placement)
             const boundingBox = new THREE.Box3().setFromObject(preloadedModel);
             cachedModelMinY = boundingBox.min.y;
@@ -1451,6 +1564,119 @@
             scale: { x: mesh.scale.x, y: mesh.scale.y, z: mesh.scale.z },
             metadata: treatMetadata,
             offset: { ...pendingOffset }, // Store the offset used
+          };
+
+          // Store treat and mesh reference
+          treats.set(treatId, { treat, mesh });
+          
+          // Make mesh clickable by storing treat ID
+          mesh.userData.treatId = treatId;
+          mesh.userData.isTreat = true;
+
+          emit('treatPlaced', treat);
+          return treat;
+        },
+
+        /**
+         * Place the selected treat at a specific transform (from ghost preview)
+         * This places the treat at the exact ghost position with full opacity.
+         * (Requirements 2.1, 2.2)
+         * 
+         * @param {Object} transform - Transform { position, rotation, scale }
+         * @param {Object} metadata - Optional metadata to override pending metadata
+         * @returns {Object|null} The placed treat or null if no treat selected
+         */
+        placeTreatAtTransform(transform, metadata = null) {
+          if (!selectedGlbUrl || !preloadedModel) {
+            console.warn('TreatManager: No treat selected for placement');
+            return null;
+          }
+
+          if (!transform || !transform.position) {
+            console.warn('TreatManager: Invalid transform provided');
+            return null;
+          }
+
+          // Clone the preloaded model
+          const mesh = preloadedModel.clone();
+          
+          // Apply the exact transform from ghost preview (Requirement 2.1)
+          mesh.position.set(transform.position.x, transform.position.y, transform.position.z);
+          
+          // Apply rotation if provided
+          if (transform.rotation) {
+            mesh.rotation.set(
+              transform.rotation.x,
+              transform.rotation.y,
+              transform.rotation.z,
+              transform.rotation.order || 'XYZ'
+            );
+          }
+          
+          // Apply scale if provided
+          if (transform.scale) {
+            mesh.scale.set(transform.scale.x, transform.scale.y, transform.scale.z);
+          }
+          
+          // Restore original material properties (preserve glass/transparency from GLB)
+          // The ghost preview modifies materials to 50% opacity, so we need to restore
+          // the original values from the preloaded model, not force everything opaque
+          mesh.traverse((child) => {
+            if (child.isMesh && child.material) {
+              const materials = Array.isArray(child.material) ? child.material : [child.material];
+              materials.forEach((mat) => {
+                // Re-enable depth write (ghost preview disables it)
+                mat.depthWrite = true;
+                // Note: We do NOT reset transparent/opacity here because:
+                // 1. The mesh is cloned from preloadedModel which has original GLB materials
+                // 2. Glass/transparent materials in the GLB should remain transparent
+                // 3. Only the ghost preview modifies opacity, and we're using a fresh clone
+              });
+            }
+          });
+          
+          // Set render order so GLB renders after splat mesh for proper occlusion
+          mesh.renderOrder = 1;
+          mesh.traverse((child) => {
+            if (child.isMesh) {
+              child.renderOrder = 1;
+            }
+          });
+          
+          // Add to scene
+          scene.add(mesh);
+
+          // Create treat data
+          const treatId = generateId();
+          const treatMetadata = metadata || { ...pendingMetadata };
+          
+          // Enforce text length constraint
+          if (treatMetadata.text && treatMetadata.text.length > 280) {
+            treatMetadata.text = treatMetadata.text.substring(0, 280);
+          }
+
+          const treat = {
+            id: treatId,
+            type: selectedType,
+            glbUrl: selectedGlbUrl,
+            position: { 
+              x: transform.position.x, 
+              y: transform.position.y, 
+              z: transform.position.z 
+            },
+            rotation: transform.rotation ? { 
+              x: transform.rotation.x, 
+              y: transform.rotation.y, 
+              z: transform.rotation.z,
+              order: transform.rotation.order || 'XYZ',
+            } : { x: 0, y: 0, z: 0, order: 'XYZ' },
+            scale: transform.scale ? { 
+              x: transform.scale.x, 
+              y: transform.scale.y, 
+              z: transform.scale.z 
+            } : { x: 1, y: 1, z: 1 },
+            metadata: treatMetadata,
+            offset: { ...pendingOffset },
           };
 
           // Store treat and mesh reference
@@ -1582,6 +1808,14 @@
         },
 
         /**
+         * Check if a treat is currently selected for placement
+         * @returns {boolean} True if a treat is selected
+         */
+        hasSelectedTreat() {
+          return selectedGlbUrl !== null && preloadedModel !== null;
+        },
+
+        /**
          * Subscribe to events
          * @param {string} event - Event name ('treatPlaced', 'treatRemoved', 'treatClicked', 'selectionChanged', 'loadError')
          * @param {Function} callback - Callback function
@@ -1670,14 +1904,47 @@
       cameraHeight: 1.6,
       cameraDistance: 5,
       joystickMaxDist: 35,
-      loadTimeout: 30000, // 30s for large SPZ files
+      loadTimeout: 60000, // 60s for large SPZ files
     };
 
     // Get world from URL params
     const params = new URLSearchParams(window.location.search);
     const spzUrl = params.get('url') || 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bonsai/bonsai-7k-mini.spz';
     const worldName = params.get('name') || 'Splat World';
-    const isAdminMode = params.get('admin') === 'true';
+    const thumbnailUrl = params.get('thumb');
+    const adminParam = params.get('admin');
+    const isAdminMode = adminParam === 'true' || adminParam === 'debug';
+    // Flip control: ?flip=1 or ?flip=true to flip, ?flip=0 or ?flip=false to not flip
+    // Default: true (most SPZ files need flipping)
+    const flipParam = params.get('flip');
+    const shouldFlip = flipParam === null || flipParam === '1' || flipParam === 'true';
+    console.log('🔄 Flip SPZ:', shouldFlip, '(param:', flipParam, ')');
+    
+    // Default treat GLB filename (e.g., 'geomarker_animated.glb')
+    const S3_BASE_URL = 'https://s3.amazonaws.com/worldmatica/';
+    const defaultTreatFile = params.get('defaultTreat') || 'geomarker_animated.glb';
+    const defaultTreatUrl = S3_BASE_URL + defaultTreatFile;
+
+    // Set thumbnail as loading background if provided
+    if (thumbnailUrl) {
+      const loadingEl = document.getElementById('loading');
+      loadingEl.style.backgroundImage = `url(${thumbnailUrl})`;
+      console.log('🖼️ Thumbnail set:', thumbnailUrl);
+    } else {
+      console.log('🖼️ No thumbnail provided');
+    }
+
+    // Read startPosition from URL params (passed from config.ts)
+    const startPos = {
+      x: parseFloat(params.get('px')) || 0,
+      y: parseFloat(params.get('py')) || CONFIG.cameraHeight,
+      z: parseFloat(params.get('pz')) || CONFIG.cameraDistance,
+    };
+    const startRot = {
+      x: parseFloat(params.get('rx')) || 0,
+      y: parseFloat(params.get('ry')) || 0,
+    };
+    console.log('📍 Start position:', startPos, 'rotation:', startRot);
     
     document.getElementById('world-name').textContent = worldName;
 
@@ -1686,7 +1953,10 @@
     scene.background = new THREE.Color(0x1a1a2e);
     
     const camera = new THREE.PerspectiveCamera(CONFIG.defaultFov, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, CONFIG.cameraHeight, CONFIG.cameraDistance);
+    camera.position.set(startPos.x, startPos.y, startPos.z);
+    // Apply rotation using euler with YXZ order (pitch=x, yaw=y)
+    const initEuler = new THREE.Euler(startRot.x, startRot.y, 0, 'YXZ');
+    camera.quaternion.setFromEuler(initEuler);
     
     const renderer = new THREE.WebGLRenderer({ 
       antialias: false,
@@ -1738,23 +2008,34 @@
     // Load splat with progress tracking using SplatLoader
     const splatLoader = new SplatLoader();
     
+    console.log('🔄 Loading SPZ from:', spzUrl);
+    
+    // Test URL accessibility
+    fetch(spzUrl, { method: 'HEAD' })
+      .then(res => console.log('📡 URL check:', res.ok ? 'accessible' : `error ${res.status}`))
+      .catch(err => console.log('📡 URL check failed:', err.message));
+    
     splatLoader.load(
       spzUrl,
       // onLoad - called when PackedSplats is ready
       (packedSplats) => {
+        console.log('✅ PackedSplats received, building mesh...');
         loadingStatus.textContent = 'Building mesh...';
         progressBar.style.width = '95%';
         progressText.textContent = '95%';
         
         // Create SplatMesh from loaded data
         splatMesh = new SplatMesh({ packedSplats });
-        splatMesh.rotation.x = Math.PI; // Flip - SPZ files are often upside down
+        if (shouldFlip) {
+          splatMesh.rotation.x = Math.PI; // Flip - SPZ files are often upside down
+        }
         splatMesh.renderOrder = 0;
         
         // Apply Deep Meditation shader effect during load-in
         applyLoadInEffect(splatMesh);
         
         scene.add(splatMesh);
+        console.log('✅ SplatMesh added to scene');
         
         // Initialize systems that depend on splatMesh
         raycastSystem = createRaycastSystem(camera, splatMesh);
@@ -1781,19 +2062,23 @@
           } else {
             loadingStatus.textContent = 'Processing...';
           }
+        } else {
+          // No progress info available, show indeterminate state
+          console.log('📥 Loading... (no progress info)');
         }
       },
       // onError
       (error) => {
-        console.error('Splat load failed:', error);
-        showError('Failed to load world');
+        console.error('❌ Splat load failed:', error);
+        showError(`Failed to load world: ${error.message || error}`);
       }
     );
     
     // Fallback timeout for very large files
     setTimeout(() => {
       if (!loadHandled && !splatMesh) {
-        showError('Loading timed out - file may be too large');
+        console.error('⏱️ Timeout reached. loadHandled:', loadHandled, 'splatMesh:', splatMesh);
+        showError('Loading timed out - file may be too large or URL may be invalid');
       }
     }, CONFIG.loadTimeout);
 
@@ -1802,8 +2087,8 @@
     // ============================================
     const adminPanel = document.getElementById('admin-panel');
     const adminToast = document.getElementById('admin-toast');
-    let pitch = 0; // Track pitch for admin display
-    let yaw = 0;   // Track yaw for admin display
+    let pitch = startRot.x; // Track pitch for admin display (initialized from URL)
+    let yaw = startRot.y;   // Track yaw for admin display (initialized from URL)
 
     if (isAdminMode) {
       adminPanel.classList.add('visible');
@@ -1823,6 +2108,20 @@
       // Format number to 2 decimal places
       const fmt = (n) => n.toFixed(2);
 
+      // Editable input elements
+      const posXInput = document.getElementById('admin-pos-x');
+      const posYInput = document.getElementById('admin-pos-y');
+      const posZInput = document.getElementById('admin-pos-z');
+      const rotXInput = document.getElementById('admin-rot-x');
+      const rotYInput = document.getElementById('admin-rot-y');
+
+      // Initialize inputs with current values
+      posXInput.value = fmt(camera.position.x);
+      posYInput.value = fmt(camera.position.y);
+      posZInput.value = fmt(camera.position.z);
+      rotXInput.value = fmt(pitch);
+      rotYInput.value = fmt(yaw);
+
       // Update admin panel with current camera state
       function updateAdminPanel() {
         const pos = camera.position;
@@ -1831,18 +2130,60 @@
         adminPosEl.textContent = `${fmt(pos.x)}, ${fmt(pos.y)}, ${fmt(pos.z)}`;
         adminRotEl.textContent = `${fmt(pitch)}, ${fmt(yaw)}`;
         adminDirEl.textContent = `${fmt(dir.x)}, ${fmt(dir.y)}, ${fmt(dir.z)}`;
+        
+        // Sync inputs with current values (only if not focused)
+        if (document.activeElement !== posXInput) posXInput.value = fmt(pos.x);
+        if (document.activeElement !== posYInput) posYInput.value = fmt(pos.y);
+        if (document.activeElement !== posZInput) posZInput.value = fmt(pos.z);
+        if (document.activeElement !== rotXInput) rotXInput.value = fmt(pitch);
+        if (document.activeElement !== rotYInput) rotYInput.value = fmt(yaw);
       }
 
-      // Get config object for export
+      // Apply camera values from inputs
+      function applyCameraFromInputs() {
+        const newX = parseFloat(posXInput.value) || 0;
+        const newY = parseFloat(posYInput.value) || 0;
+        const newZ = parseFloat(posZInput.value) || 0;
+        const newPitch = parseFloat(rotXInput.value) || 0;
+        const newYaw = parseFloat(rotYInput.value) || 0;
+        
+        camera.position.set(newX, newY, newZ);
+        pitch = newPitch;
+        yaw = newYaw;
+        
+        // Update camera quaternion using euler (YXZ order for FPS)
+        const newEuler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+        camera.quaternion.setFromEuler(newEuler);
+        
+        // Also update the global euler if it exists (for FPS controls sync)
+        if (typeof euler !== 'undefined') {
+          euler.x = pitch;
+          euler.y = yaw;
+        }
+        
+        updateAdminPanel();
+      }
+
+      // Apply button
+      document.getElementById('apply-camera').addEventListener('click', applyCameraFromInputs);
+
+      // Real-time update on input change (arrow keys, scroll, typing)
+      [posXInput, posYInput, posZInput, rotXInput, rotYInput].forEach((input) => {
+        input.addEventListener('input', applyCameraFromInputs);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            input.blur();
+          }
+        });
+      });
+
+      // Get config object for export (matches config.ts startPosition format)
       function getConfigObject() {
         const pos = camera.position;
-        return {
-          initialCamera: {
-            position: { x: parseFloat(fmt(pos.x)), y: parseFloat(fmt(pos.y)), z: parseFloat(fmt(pos.z)) },
-            pitch: parseFloat(fmt(pitch)),
-            yaw: parseFloat(fmt(yaw)),
-          },
-        };
+        return `startPosition: {
+  position: { x: ${fmt(pos.x)}, y: ${fmt(pos.y)}, z: ${fmt(pos.z)} },
+  rotation: { x: ${fmt(pitch)}, y: ${fmt(yaw)} },
+},`;
       }
 
       // Copy to clipboard helper
@@ -1875,8 +2216,7 @@
 
       // Export full config button
       document.getElementById('export-config').addEventListener('click', () => {
-        const config = getConfigObject();
-        copyToClipboard(JSON.stringify(config, null, 2), 'Config copied!');
+        copyToClipboard(getConfigObject(), 'startPosition copied!');
       });
 
       // Keyboard shortcuts for admin
@@ -1887,8 +2227,7 @@
           const pos = camera.position;
           copyToClipboard(`{ x: ${fmt(pos.x)}, y: ${fmt(pos.y)}, z: ${fmt(pos.z)} }`, 'Position copied!');
         } else if (e.key === 'v' || e.key === 'V') {
-          const config = getConfigObject();
-          copyToClipboard(JSON.stringify(config, null, 2), 'Config copied!');
+          copyToClipboard(getConfigObject(), 'startPosition copied!');
         } else if (e.key === 'r' || e.key === 'R') {
           camera.position.set(0, CONFIG.cameraHeight, CONFIG.cameraDistance);
           pitch = 0;
@@ -1980,8 +2319,14 @@
     const treatTextInput = document.getElementById('treat-text');
     const charCountEl = document.getElementById('char-count');
     const loadTreatBtn = document.getElementById('load-treat-btn');
+    const presetGeomarkerBtn = document.getElementById('preset-geomarker');
     const presetBottleBtn = document.getElementById('preset-bottle');
     const placedTreatsSection = document.getElementById('placed-treats-section');
+    
+    // Set geomarker button URL from query param (allows config.ts to control default treat)
+    if (presetGeomarkerBtn) {
+      presetGeomarkerBtn.dataset.url = defaultTreatUrl;
+    }
     const placedTreatsList = document.getElementById('placed-treats-list');
     const messageModal = document.getElementById('message-modal');
     const messageContent = document.getElementById('message-content');
@@ -1989,6 +2334,7 @@
     const offsetXInput = document.getElementById('offset-x');
     const offsetYInput = document.getElementById('offset-y');
     const offsetZInput = document.getElementById('offset-z');
+    const cancelPlacementBtn = document.getElementById('cancel-placement-btn');
 
     // Update offset when inputs change
     function updateOffset() {
@@ -2002,11 +2348,26 @@
     offsetXInput.addEventListener('input', updateOffset);
     offsetYInput.addEventListener('input', updateOffset);
     offsetZInput.addEventListener('input', updateOffset);
+    
+    // Cancel placement button handler (Requirement 2.4)
+    cancelPlacementBtn.addEventListener('click', () => {
+      exitPlacementMode();
+      if (treatManager) treatManager.clearSelection();
+      // Clear preset selections
+      document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
+      showStatus('Placement cancelled', 'ready');
+      setTimeout(hideStatus, 1500);
+    });
 
     // Show/hide treat panel based on mode
-    modeManager.onModeChange((mode) => {
+    // Auto-load geomarker as default treat when entering edit mode
+    modeManager.onModeChange(async (mode) => {
       if (mode === 'edit') {
         treatPanelEl.classList.add('visible');
+        // Auto-load geomarker as default treat for enterprise annotation
+        if (treatManager && presetGeomarkerBtn && !treatManager.hasSelectedTreat()) {
+          presetGeomarkerBtn.click();
+        }
       } else {
         treatPanelEl.classList.remove('visible');
       }
@@ -2035,29 +2396,29 @@
       treatStatusEl.style.display = 'none';
     }
 
-    // Preset button click
-    presetBottleBtn.addEventListener('click', async () => {
+    // Generic preset button handler
+    async function handlePresetClick(btn, treatId, displayName, offsetY = 0) {
       if (!treatManager) {
         showStatus('World still loading...', 'loading');
         return;
       }
-      const url = presetBottleBtn.dataset.url;
+      const url = btn.dataset.url;
       glbUrlInput.value = url;
       
       // Clear other preset selections
-      document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
-      presetBottleBtn.classList.add('selected');
+      document.querySelectorAll('.preset-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
       
-      // Set default offset for Message in a Bottle (adjust Y to lift it above surface)
+      // Set default offset
       offsetXInput.value = '0';
-      offsetYInput.value = '0.1'; // Lift slightly above surface
+      offsetYInput.value = String(offsetY);
       offsetZInput.value = '0';
       updateOffset();
       
-      showStatus('Loading Message in a Bottle...', 'loading');
+      showStatus(`Loading ${displayName}...`, 'loading');
       
       try {
-        await treatManager.selectTreat(url, 'message-bottle');
+        await treatManager.selectTreat(url, treatId);
         // Load ghost preview for the selected treat
         if (ghostPreview) {
           await ghostPreview.load(url);
@@ -2068,6 +2429,16 @@
       } catch (error) {
         showStatus(`✗ ${error.message}`, 'error');
       }
+    }
+
+    // Geomarker preset (default for enterprise annotation)
+    presetGeomarkerBtn.addEventListener('click', () => {
+      handlePresetClick(presetGeomarkerBtn, 'geomarker', 'Geomarker Pin', 0);
+    });
+
+    // Message in a Bottle preset
+    presetBottleBtn.addEventListener('click', () => {
+      handlePresetClick(presetBottleBtn, 'message-bottle', 'Message in a Bottle', 0.1);
     });
 
     // Load custom GLB button
@@ -2217,7 +2588,7 @@
     // FPS Controls
     const moveState = { forward: false, backward: false, left: false, right: false };
     const joystickInput = { x: 0, y: 0 };
-    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    const euler = new THREE.Euler(startRot.x, startRot.y, 0, 'YXZ'); // Initialize from URL params
     let isLocked = false;
 
     // Key mapping for cleaner event handling
@@ -2323,6 +2694,8 @@
       isInPlacementMode = true;
       // Change cursor to crosshair (Requirement 6.1)
       renderer.domElement.style.cursor = 'crosshair';
+      // Show cancel button (Requirement 2.4)
+      if (cancelPlacementBtn) cancelPlacementBtn.style.display = 'block';
     }
     
     function exitPlacementMode() {
@@ -2331,6 +2704,8 @@
       if (ghostPreview) ghostPreview.hide();
       hideSurfaceRing();
       lastValidHit = null;
+      // Hide cancel button (Requirement 2.4)
+      if (cancelPlacementBtn) cancelPlacementBtn.style.display = 'none';
     }
     
     // Update ghost preview position on mouse move (Requirements 1.1, 1.2)
@@ -2382,6 +2757,8 @@
       if (e.code === 'Escape' && isInPlacementMode) {
         exitPlacementMode();
         if (treatManager) treatManager.clearSelection();
+        // Clear preset selections
+        document.querySelectorAll('.preset-btn').forEach((btn) => btn.classList.remove('selected'));
         showStatus('Placement cancelled', 'ready');
         setTimeout(hideStatus, 1500);
       }
@@ -2399,23 +2776,41 @@
           return;
         }
         
-        // If a treat is selected, try to place it
+        // If a treat is selected and we're in placement mode, confirm placement
+        // (Requirements 2.1, 2.2)
         if (!raycastSystem || !treatManager) return; // Not loaded yet
-        if (treatManager.hasSelection()) {
-          const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
+        if (treatManager.hasSelection() && isInPlacementMode && ghostPreview) {
+          // Check if ghost preview is in a valid state
+          if (!ghostPreview.isValidState() || !ghostPreview.isVisible()) {
+            console.log('Cannot place - ghost preview is not in valid state');
+            showMissIndicator();
+            window.dispatchEvent(new CustomEvent('raycast-miss'));
+            return;
+          }
           
-          if (hit) {
-            console.log('Raycast hit:', hit);
-            const placedTreat = treatManager.placeTreat(hit);
+          // Get the transform from ghost preview (Requirement 2.1)
+          const ghostTransform = ghostPreview.getTransform();
+          if (ghostTransform) {
+            console.log('Placing treat at ghost position:', ghostTransform.position);
+            // Place at ghost position with full opacity (Requirement 2.2)
+            const placedTreat = treatManager.placeTreatAtTransform(ghostTransform);
             if (placedTreat) {
-              showHitMarker(hit);
+              showHitMarker({ position: ghostTransform.position });
               window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
+              
+              // Keep selection and ghost preview for next placement (Requirement 2.3)
+              // Ghost preview stays visible and ready for next placement
+              showStatus('✓ Treat placed! Click again to place another.', 'ready');
             }
           } else {
-            console.log('Raycast miss - no valid surface');
+            console.log('No ghost transform available');
             showMissIndicator();
             window.dispatchEvent(new CustomEvent('raycast-miss'));
           }
+        } else if (treatManager.hasSelection() && !isInPlacementMode) {
+          // Selection exists but not in placement mode - enter placement mode
+          enterPlacementMode();
+          showStatus('Move cursor to preview placement position', 'ready');
         } else {
           // No treat selected, just show hit marker for feedback
           const hit = raycastSystem.raycastFromEvent(e.clientX, e.clientY, renderer.domElement);
@@ -2567,22 +2962,39 @@
           if (clickedTreatId) {
             treatManager.onTreatClick(clickedTreatId);
           } else if (modeManager.isEditMode()) {
-            // In edit mode, try to place a treat
-            if (treatManager.hasSelection()) {
-              const hit = raycastSystem.raycastFromEvent(touch.clientX, touch.clientY, renderer.domElement);
+            // In edit mode, try to place a treat using ghost preview position
+            // (Requirements 2.1, 2.2)
+            if (treatManager.hasSelection() && isInPlacementMode && ghostPreview) {
+              // Check if ghost preview is in a valid state
+              if (!ghostPreview.isValidState() || !ghostPreview.isVisible()) {
+                console.log('Mobile: Cannot place - ghost preview is not in valid state');
+                showMissIndicator();
+                window.dispatchEvent(new CustomEvent('raycast-miss'));
+                return;
+              }
               
-              if (hit) {
-                console.log('Mobile raycast hit:', hit);
-                const placedTreat = treatManager.placeTreat(hit);
+              // Get the transform from ghost preview (Requirement 2.1)
+              const ghostTransform = ghostPreview.getTransform();
+              if (ghostTransform) {
+                console.log('Mobile: Placing treat at ghost position:', ghostTransform.position);
+                // Place at ghost position with full opacity (Requirement 2.2)
+                const placedTreat = treatManager.placeTreatAtTransform(ghostTransform);
                 if (placedTreat) {
-                  showHitMarker(hit);
+                  showHitMarker({ position: ghostTransform.position });
                   window.dispatchEvent(new CustomEvent('treat-placed', { detail: placedTreat }));
+                  
+                  // Keep selection and ghost preview for next placement (Requirement 2.3)
+                  showStatus('✓ Treat placed! Tap again to place another.', 'ready');
                 }
               } else {
-                console.log('Mobile raycast miss');
+                console.log('Mobile: No ghost transform available');
                 showMissIndicator();
                 window.dispatchEvent(new CustomEvent('raycast-miss'));
               }
+            } else if (treatManager.hasSelection() && !isInPlacementMode) {
+              // Selection exists but not in placement mode - enter placement mode
+              enterPlacementMode();
+              showStatus('Move finger to preview placement position', 'ready');
             } else {
               // No treat selected
               const hit = raycastSystem.raycastFromEvent(touch.clientX, touch.clientY, renderer.domElement);

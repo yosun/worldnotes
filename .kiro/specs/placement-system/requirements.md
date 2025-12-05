@@ -37,8 +37,9 @@ The Placement System Enhancement improves the user experience for placing 3D tre
 
 1. WHEN a user clicks while the ghost preview is visible on a valid surface THEN the System SHALL place the treat at the preview position
 2. WHEN a treat is placed THEN the System SHALL convert the ghost preview to a solid placed treat
-3. WHEN a treat is placed THEN the System SHALL keep the same treat selected for additional placements
+3. WHEN a treat is placed THEN the System SHALL exit placement mode and select the newly placed treat for adjustment
 4. WHEN a user presses Escape or clicks the cancel button THEN the System SHALL cancel placement mode and hide the ghost preview
+5. WHEN a user clicks the duplicate button on a selected treat THEN the System SHALL enter placement mode with a copy of that treat type
 
 ### Requirement 3: Post-Placement Adjustment
 

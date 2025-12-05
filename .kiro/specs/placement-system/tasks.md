@@ -43,8 +43,8 @@
 
 ## Phase 2: Click-to-Confirm Placement
 
-- [ ] 3. Implement click-to-confirm workflow
-  - [ ] 3.1 Modify click handler for placement confirmation
+- [x] 3. Implement click-to-confirm workflow
+  - [x] 3.1 Modify click handler for placement confirmation
     - Click places treat at ghost position (not raycast position)
     - Convert ghost to solid treat (full opacity)
     - _Requirements: 2.1, 2.2_
@@ -54,18 +54,22 @@
   - [ ]* 3.3 Write property test for placed treat opacity
     - **Property 5: Placed treat has full opacity**
     - **Validates: Requirements 2.2**
-  - [ ] 3.4 Keep selection after placement
-    - After placing, same treat type remains selected
-    - Ghost preview reappears for next placement
+  - [ ] 3.4 Exit placement mode after placing
+    - After placing, exit placement mode
+    - Select the newly placed treat for adjustment
     - _Requirements: 2.3_
-  - [ ]* 3.5 Write property test for selection persistence
-    - **Property 6: Selection persists after placement**
+  - [ ]* 3.5 Write property test for placement mode exit
+    - **Property 6: Placement exits to adjustment mode**
     - **Validates: Requirements 2.3**
-  - [ ] 3.6 Implement cancel placement
+  - [ ] 3.7 Implement duplicate button for selected treats
+    - Add duplicate button to selection UI
+    - Clicking duplicate enters placement mode with same treat type
+    - _Requirements: 2.5_
+  - [x] 3.6 Implement cancel placement
     - Escape key or cancel button hides ghost and exits placement mode
     - _Requirements: 2.4_
 
-- [ ] 4. Checkpoint - Ensure all tests pass
+- [x] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Phase 3: Selection and Post-Placement Adjustment

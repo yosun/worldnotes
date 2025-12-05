@@ -364,8 +364,8 @@ Based on the prework analysis, the following correctness properties have been id
 *For any* placed treat, all materials SHALL have opacity set to 1.0 (not ghost opacity).
 **Validates: Requirements 2.2**
 
-**Property 6: Selection persists after placement**
-*For any* placement confirmation, the same treat type SHALL remain selected for additional placements.
+**Property 6: Placement exits to adjustment mode**
+*For any* placement confirmation, the system SHALL exit placement mode and select the newly placed treat for adjustment.
 **Validates: Requirements 2.3**
 
 ### Selection and Drag Properties
