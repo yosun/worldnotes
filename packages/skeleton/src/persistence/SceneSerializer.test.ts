@@ -259,4 +259,39 @@ describe('Round-trip serialization', () => {
 
     expect(restored).toEqual(original);
   });
+
+  it('should preserve worldFlipY setting through serialize/deserialize cycle', () => {
+    const original: SceneState = {
+      version: 1,
+      worldUrl: 'https://example.com/world.spz',
+      worldFlipY: false,
+      treats: [],
+      waypoints: [],
+      paths: [],
+      createdAt: '2025-01-01T00:00:00Z',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const json = toJSON(original);
+    const restored = fromJSON(json);
+
+    expect(restored.worldFlipY).toBe(false);
+  });
+
+  it('should handle undefined worldFlipY', () => {
+    const original: SceneState = {
+      version: 1,
+      worldUrl: 'https://example.com/world.spz',
+      treats: [],
+      waypoints: [],
+      paths: [],
+      createdAt: '2025-01-01T00:00:00Z',
+      updatedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const json = toJSON(original);
+    const restored = fromJSON(json);
+
+    expect(restored.worldFlipY).toBeUndefined();
+  });
 });

@@ -54,6 +54,7 @@ export interface SerializedTreat {
 export interface SerializedSceneState {
   version: number;
   worldUrl: string;
+  worldFlipY?: boolean;
   treats: SerializedTreat[];
   waypoints: Array<{
     id: string;
@@ -156,6 +157,7 @@ export function toJSON(state: SceneState): string {
   const serialized: SerializedSceneState = {
     version: state.version,
     worldUrl: state.worldUrl,
+    worldFlipY: state.worldFlipY,
     treats: state.treats.map(serializeTreat),
     waypoints: state.waypoints.map(serializeWaypoint),
     paths: state.paths.map(serializeWaypointPath),
@@ -176,6 +178,7 @@ export function toObject(state: SceneState): SerializedSceneState {
   return {
     version: state.version,
     worldUrl: state.worldUrl,
+    worldFlipY: state.worldFlipY,
     treats: state.treats.map(serializeTreat),
     waypoints: state.waypoints.map(serializeWaypoint),
     paths: state.paths.map(serializeWaypointPath),

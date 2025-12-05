@@ -3167,9 +3167,10 @@
       const adminParam = params.get('admin');
       const isAdminMode = adminParam === 'true' || adminParam === 'debug';
       // Flip control: ?flip=1 or ?flip=true to flip, ?flip=0 or ?flip=false to not flip
-      // Default: true (most SPZ files need flipping)
+      // Default: true (SparkJS convention - most SPZ files are upside down)
+      // Can be overridden by worldFlipY in scene state or ?flip=0 URL param
       const flipParam = params.get('flip');
-      const shouldFlip = flipParam === null || flipParam === '1' || flipParam === 'true';
+      let shouldFlip = flipParam === null || flipParam === '1' || flipParam === 'true';
       console.log('🔄 Flip SPZ:', shouldFlip, '(param:', flipParam, ')');
 
       // Scene ID for loading shared scenes
@@ -3272,6 +3273,23 @@
       const splatLoader = new SplatLoader();
 
       /**
+       * Load AWS SDK v2 (browser-compatible) dynamically
+       * Declared early so it's available for initializeViewer
+       */
+      let awsSDKLoadedEarly = false;
+      async function loadAWSSDKEarly() {
+        if (awsSDKLoadedEarly) return;
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        awsSDKLoadedEarly = true;
+      }
+
+      /**
        * Initialize the viewer - fetch scene JSON first if scene param exists
        */
       async function initializeViewer() {
@@ -3303,8 +3321,17 @@
                 const initEuler = new THREE.Euler(startRot.x, startRot.y, 0, 'YXZ');
                 camera.quaternion.setFromEuler(initEuler);
               }
+              // Apply worldFlipY from scene state (overrides URL param)
+              // Also check legacy 'shouldFlip' key for backwards compatibility
+              if (pendingSceneState.worldFlipY !== undefined) {
+                shouldFlip = pendingSceneState.worldFlipY;
+                console.log('🔄 Flip SPZ from scene state (worldFlipY):', shouldFlip);
+              } else if (pendingSceneState.shouldFlip !== undefined) {
+                shouldFlip = pendingSceneState.shouldFlip;
+                console.log('🔄 Flip SPZ from scene state (legacy shouldFlip):', shouldFlip);
+              }
               currentSceneId = sceneIdParam;
-              console.log('📍 Scene worldUrl:', spzUrl, 'startPos:', startPos);
+              console.log('📍 Scene worldUrl:', spzUrl, 'startPos:', startPos, 'flip:', shouldFlip);
             }
           } catch (error) {
             console.error('Failed to fetch scene metadata:', error);
@@ -5154,7 +5181,7 @@
           // Save current camera state so shared scenes load at same view
           startPosition: { x: currentPos.x, y: currentPos.y, z: currentPos.z },
           startRotation: { x: currentRot.x, y: currentRot.y },
-          shouldFlip: shouldFlip,
+          worldFlipY: shouldFlip,
           thumbnailUrl: thumbnailUrl || '',
           treats: treats.map((t) => ({
             id: t.id,
@@ -5326,7 +5353,7 @@
        */
       async function loadSceneFromS3(sceneId) {
         try {
-          await loadAWSSDK();
+          await loadAWSSDKEarly();
 
           // Configure AWS with Cognito credentials
           AWS.config.region = AWS_CONFIG.region;

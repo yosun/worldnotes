@@ -157,6 +157,8 @@ export interface SceneState {
   version: number;
   /** URL of the splat world */
   worldUrl: string;
+  /** Whether the world is flipped on Y axis (default: true for most SPZ files) */
+  worldFlipY?: boolean;
   /** All placed treats */
   treats: Treat[];
   /** All waypoints */

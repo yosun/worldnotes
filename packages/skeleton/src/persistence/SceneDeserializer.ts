@@ -193,6 +193,7 @@ export function fromObject(data: SerializedSceneState): SceneState {
   return {
     version: Number(data.version) || 1,
     worldUrl: String(data.worldUrl),
+    worldFlipY: data.worldFlipY !== undefined ? Boolean(data.worldFlipY) : undefined,
     treats: Array.isArray(data.treats) ? data.treats.map(deserializeTreat) : [],
     waypoints: Array.isArray(data.waypoints) ? data.waypoints.map(deserializeWaypoint) : [],
     paths: Array.isArray(data.paths) ? data.paths.map(deserializeWaypointPath) : [],
